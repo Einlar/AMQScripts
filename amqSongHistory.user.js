@@ -38,6 +38,10 @@
  * @typedef {Object} AnimeNames
  * @property {String} english
  * @property {String} romaji
+ *
+ * @typedef {Object} TeamMemberAnswer
+ * @property {String} answer
+ * @property {number} gamePlayerId
  */
 
 /**
@@ -62,6 +66,14 @@ const state = {
    * @type {String[]}
    */
   songNames: [],
+  /**
+   * Current anime guess
+   */
+  animeGuess: "",
+  /**
+   * Map between players and their avatar slots
+   */
+  players: new Map(),
 };
 
 /**
@@ -267,6 +279,23 @@ class Dropdown {
   }
 }
 
+// TODO: Script does not reload when rejoining a game!
+
+/**
+ * Send answer
+ *
+ * @param {String} answer
+ */
+const submitAnswer = (answer) => {
+  $("#qpAnswerInput").val(answer);
+  quiz.answerInput.submitAnswer(true);
+};
+
+/**
+ * Build string with anime & s/a
+ */
+const buildSongArtistAnswer = (song) => `${state.animeGuess}<>${song}`;
+
 /**
  * Setup s/a fields
  */
@@ -292,11 +321,18 @@ const setupSongArtistFields = () => {
   );
   songInputContainer.append(songInput);
 
+  songInput.on("input", (e) => {
+    //TODO This field should be disabled a few seconds before the guess ends
+    // Or at least it should be debounced
+    submitAnswer(buildSongArtistAnswer(e.target.value));
+  });
+
   // Dropdown
   const dropdown = new Dropdown(songInputContainer, {
     onClickCallback: (value) => {
       songInput.val(value);
       songInput.focus();
+      submitAnswer(buildSongArtistAnswer(value));
     },
   });
 
@@ -304,6 +340,17 @@ const setupSongArtistFields = () => {
     const value = e.target.value;
     const songs = searchSongs(value);
     dropdown.load(highlightSearch(songs, value));
+  });
+
+  const animeAnswerInput = $("#qpAnswerInput");
+
+  animeAnswerInput.on("focus", function () {
+    $(this).val(state.animeGuess);
+  });
+
+  animeAnswerInput.on("blur", function (e) {
+    state.animeGuess = e.target.value;
+    $(this).val(buildSongArtistAnswer(songInput.val()));
   });
 };
 
@@ -324,6 +371,85 @@ const toggleScript = () => {
 };
 
 /**
+ * Disable input to the s/a fields
+ */
+const lockSongArtistFields = () => {
+  //TODO
+};
+
+/**
+ * Reset the state
+ */
+const resetState = () => {
+  state.animeGuess = "";
+
+  // Reset the input fields
+  $("#saSongInput").val("");
+  $("#qpAnswerInput").val("");
+};
+
+/**
+ * Wait a timeout
+ */
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Setup the players
+ */
+const setupPlayers = async (players) => {
+  // Wait for quiz.players to finish setup
+  while (window.quiz.players === undefined || window.quiz.players === null) {
+    await sleep(250);
+  }
+
+  console.log({ players: window.quiz.players });
+
+  // Reset
+  state.players.clear();
+
+  players.forEach(({ gamePlayerId }) => {
+    const avatarSlot = window.quiz.players[gamePlayerId].avatarSlot;
+    state.players.set(gamePlayerId, avatarSlot);
+
+    const animeAnswerContainer = avatarSlot.$answerContainer;
+
+    const songAnswerElement = animeAnswerContainer[0].cloneNode(true);
+    songAnswerElement.style = "top:20px";
+    avatarSlot.$innerContainer[0].appendChild(songAnswerElement);
+
+    avatarSlot.$songAnswerContainer = $(songAnswerElement);
+    avatarSlot.$songAnswerContainerText = avatarSlot.$songAnswerContainer.find(
+      ".qpAvatarAnswerText"
+    );
+
+    const artistAnswerElement = animeAnswerContainer[0].cloneNode(true);
+    artistAnswerElement.style = "top:60px";
+    avatarSlot.$innerContainer[0].appendChild(artistAnswerElement);
+    avatarSlot.$artistAnswerContainer = $(artistAnswerElement);
+    avatarSlot.$artistAnswerContainerText =
+      avatarSlot.$artistAnswerContainer.find(".qpAvatarAnswerText");
+  });
+};
+
+/**
+ * Show a song guess
+ */
+const showAnswer = ({ gamePlayerId, answer }) => {
+  const answerContainer = state.players.get(gamePlayerId).$songAnswerContainer;
+  const answerText = state.players.get(gamePlayerId).$songAnswerContainerText;
+
+  // Remove a class from a JQuery element
+
+  if (!answer) {
+    answerContainer.addClass("hide");
+  } else {
+    answerContainer.removeClass("hide");
+  }
+  answerText.text(answer);
+  window.fitTextToContainer(answerText, answerContainer, 23, 9); // The numbers, mason, what do they mean?
+};
+
+/**
  * Setup the script
  */
 const setup = async () => {
@@ -337,7 +463,9 @@ const setup = async () => {
       .getAll(SONG_STORE)
       .then((songs) => songs.map(({ name }) => name));
 
-    // When answer results are shown, add the song to the history
+    /**
+     * Expand local db by taking the data from the song info
+     */
     const onAnswerResults = new Listener(
       "answer results",
       async (/** @type {AnswerResults}*/ result) => {
@@ -347,22 +475,91 @@ const setup = async () => {
         });
       }
     );
-
     onAnswerResults.bindListener();
 
-    // When the quiz is ready, allow s/a to be activated
+    /**
+     * Handle keyboard commands
+     */
+    const handleCommands = (e) => {
+      if (e.altKey && e.key == "g") {
+        toggleScript();
+      }
+    };
+
+    /**
+     * Setup when a quiz starts
+     */
     const onQuizReady = new Listener("quiz ready", async () => {
       setupSongArtistFields();
       gameChat.systemMessage("S/A Script loaded!");
       gameChat.systemMessage("Press [Alt+G] to activate S/A mode");
-      document.addEventListener("keydown", (e) => {
-        if (e.altKey && e.key == "g") {
-          toggleScript();
-        }
-      });
+      document.addEventListener("keydown", handleCommands);
+      resetState();
     });
-
     onQuizReady.bindListener();
+
+    /**
+     * Teardown when a quiz ends
+     */
+    const onQuizEnd = new Listener("quiz end result", () => {
+      document.removeEventListener("keydown", handleCommands);
+    });
+    onQuizEnd.bindListener();
+
+    /**
+     * Submit the anime guess at the end
+     */
+    const onGuessPhaseOver = new Listener("guess phase over", () => {
+      // Reset answer to only the anime title
+      submitAnswer(state.animeGuess);
+    });
+    onGuessPhaseOver.bindListener();
+
+    /**
+     * Lock the song/artist fields when showing the answers after the guess phase
+     */
+    const onPlayerAnswers = new Listener("player answers", () => {
+      lockSongArtistFields();
+
+      // For each key in state.players Map
+      for (const [gamePlayerId, avatarSlot] of state.players.entries()) {
+        // Hide the answer containers
+        showAnswer({ gamePlayerId, answer: "Ciao" }); //TODO Insert the correct song name here (to be managed in the state), and do it only for the current player
+      }
+
+      console.log({ statePlayers: state.players });
+    });
+    onPlayerAnswers.bindListener();
+
+    /**
+     * Reset state when next song plays
+     */
+    const onPlayNextSong = new Listener("play next song", () => {
+      resetState();
+    });
+    onPlayNextSong.bindListener();
+
+    /**
+     * Setup players when the game starts
+     */
+    const onGameStarting = new Listener("Game Starting", ({ players }) =>
+      setupPlayers(players)
+    );
+    onGameStarting.bindListener();
+
+    /**
+     * Listen to team answers
+     */
+    const onTeamMemberAnswer = new Listener(
+      "team member answer",
+      (/** @type {TeamMemberAnswer} */ data) => {
+        // Show the answer for that player
+        const parts = data.answer.split("<>");
+        const songName = parts[parts.length - 1];
+        showAnswer({ gamePlayerId: data.gamePlayerId, answer: songName });
+      }
+    );
+    onTeamMemberAnswer.bindListener();
 
     /**
      * Metadata
