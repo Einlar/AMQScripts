@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         AMQ Song History (IndexedDB)
+// @name         AMQ Team Song/Artist gamemode
 // @namespace    http://tampermonkey.net/
 // @version      1.5
-// @description  Store all the songs you've played in an IndexedDB
+// @description  Play a song/artist game with one team.
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
 // @downloadURL
@@ -76,6 +76,7 @@ const state = {
   players: new Map(),
 };
 
+//TEST
 /**
  * Check if the browser supports IndexedDB
  *
