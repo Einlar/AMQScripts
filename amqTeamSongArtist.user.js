@@ -76,7 +76,6 @@ const state = {
   players: new Map(),
 };
 
-//TEST
 /**
  * Check if the browser supports IndexedDB
  *
@@ -466,6 +465,7 @@ const setup = async () => {
 
     /**
      * Expand local db by taking the data from the song info
+     * (This will work in the background even when the script is disabled, so the local db will continue to be expanded)
      */
     const onAnswerResults = new Listener(
       "answer results",
@@ -511,8 +511,10 @@ const setup = async () => {
      * Submit the anime guess at the end
      */
     const onGuessPhaseOver = new Listener("guess phase over", () => {
-      // Reset answer to only the anime title
-      submitAnswer(state.animeGuess);
+      if (state.active) {
+        // Reset answer to only the anime title
+        submitAnswer(state.animeGuess);
+      }
     });
     onGuessPhaseOver.bindListener();
 
@@ -520,15 +522,17 @@ const setup = async () => {
      * Lock the song/artist fields when showing the answers after the guess phase
      */
     const onPlayerAnswers = new Listener("player answers", () => {
-      lockSongArtistFields();
+      if (state.active) {
+        lockSongArtistFields();
 
-      // For each key in state.players Map
-      for (const [gamePlayerId, avatarSlot] of state.players.entries()) {
-        // Hide the answer containers
-        showAnswer({ gamePlayerId, answer: "Ciao" }); //TODO Insert the correct song name here (to be managed in the state), and do it only for the current player
+        // For each key in state.players Map
+        for (const [gamePlayerId, avatarSlot] of state.players.entries()) {
+          // Hide the answer containers
+          showAnswer({ gamePlayerId, answer: "Ciao" }); //TODO Insert the correct song name here (to be managed in the state), and do it only for the current player
+        }
+
+        console.log({ statePlayers: state.players });
       }
-
-      console.log({ statePlayers: state.players });
     });
     onPlayerAnswers.bindListener();
 
@@ -536,16 +540,20 @@ const setup = async () => {
      * Reset state when next song plays
      */
     const onPlayNextSong = new Listener("play next song", () => {
-      resetState();
+      if (state.active) {
+        resetState();
+      }
     });
     onPlayNextSong.bindListener();
 
     /**
      * Setup players when the game starts
      */
-    const onGameStarting = new Listener("Game Starting", ({ players }) =>
-      setupPlayers(players)
-    );
+    const onGameStarting = new Listener("Game Starting", ({ players }) => {
+      if (state.active) {
+        setupPlayers(players);
+      }
+    });
     onGameStarting.bindListener();
 
     /**
@@ -554,10 +562,12 @@ const setup = async () => {
     const onTeamMemberAnswer = new Listener(
       "team member answer",
       (/** @type {TeamMemberAnswer} */ data) => {
-        // Show the answer for that player
-        const parts = data.answer.split("<>");
-        const songName = parts[parts.length - 1];
-        showAnswer({ gamePlayerId: data.gamePlayerId, answer: songName });
+        if (state.active) {
+          // Show the answer for that player
+          const parts = data.answer.split("<>");
+          const songName = parts[parts.length - 1];
+          showAnswer({ gamePlayerId: data.gamePlayerId, answer: songName });
+        }
       }
     );
     onTeamMemberAnswer.bindListener();
