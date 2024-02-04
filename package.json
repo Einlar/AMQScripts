@@ -1,0 +1,17 @@
+{
+  "name": "amqscripts",
+  "version": "1.0.0",
+  "description": "Scripts for AMQ",
+  "main": "amqEvenBetterSongArtist.user.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Einlar",
+  "license": "ISC",
+  "devDependencies": {
+    "eslint": "^8.56.0"
+  },
+  "dependencies": {
+    "idb": "^8.0.0"
+  }
+}
