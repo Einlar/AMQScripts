@@ -42,7 +42,17 @@
  * @typedef {Object} TeamMemberAnswer
  * @property {String} answer
  * @property {number} gamePlayerId
+ *
+ * @typedef {Object} GameChat
+ * @property {(message: String) => void} systemMessage
  */
+
+/**
+ * Globals
+ */
+const idb = /** @type {import('idb')} */ (window.idb);
+const gameChat = /** @type {GameChat} */ (window.gameChat);
+const Listener = window.Listener;
 
 /**
  * Constants
@@ -53,94 +63,8 @@ const SA_FIELDS_ID = "songartist";
 const MAX_DROPDOWN_ITEMS = 50;
 
 /**
- * State
+ * Utilities
  */
-const state = {
-  /**
-   * Whether the script is enabled or not
-   * @type {Boolean}
-   */
-  active: false,
-  /**
-   * The array of song names loaded from the db
-   * @type {String[]}
-   */
-  songNames: [],
-  /**
-   * Current anime guess
-   */
-  animeGuess: "",
-  /**
-   * Map between players and their avatar slots
-   */
-  players: new Map(),
-};
-
-/**
- * Check if the browser supports IndexedDB
- *
- * @returns {Boolean} True if the browser supports IndexedDB
- */
-const checkCompatibility = () => {
-  if (!("indexedDB" in window)) {
-    console.error(
-      "This browser doesn't support IndexedDB, so this script cannot work!"
-    );
-    return false;
-  }
-  console.log("IndexedDB is supported!");
-  return true;
-};
-
-/**
- * Setup the IndexedDB database
- */
-const setupIndexedDB = async () => {
-  const db = await idb.openDB("AMQSongArtists", 1, {
-    upgrade(db) {
-      console.debug("Creating stores...");
-
-      if (!db.objectStoreNames.contains(SONG_STORE)) {
-        const store = db.createObjectStore(SONG_STORE, { keyPath: "name" });
-        store.createIndex("name", "name", { unique: true });
-      }
-
-      if (!db.objectStoreNames.contains(ARTIST_STORE)) {
-        const store = db.createObjectStore(ARTIST_STORE, { keyPath: "name" });
-        store.createIndex("name", "name", { unique: true });
-      }
-    },
-  });
-
-  return db; //Test
-};
-
-/**
- * Append a new s/a to the database
- *
- * @param db The database
- * @param {Object} params
- * @param {String} params.songName
- * @param {String} params.artist
- */
-const appendSong = async (db, { songName, artist }) => {
-  try {
-    const songTx = db.transaction(SONG_STORE, "readwrite");
-    await Promise.all([songTx.store.add({ name: songName }), songTx.done]);
-
-    // Keep state in sync
-    state.songNames.push(songName);
-  } catch (error) {
-    console.debug("Song already exists, nothing to do");
-  }
-
-  try {
-    const artistTx = db.transaction(ARTIST_STORE, "readwrite");
-    await Promise.all([artistTx.store.add({ name: artist }), artistTx.done]);
-  } catch (error) {
-    console.debug("Artist already exists, nothing to do");
-  }
-};
 
 /**
  * Clean a string by replacing all non-alphanumeric characters with spaces (so that length is not altered) and converting to lowercase.
@@ -152,46 +76,175 @@ const appendSong = async (db, { songName, artist }) => {
 const cleanString = (str) => str.toLocaleLowerCase().replace(/[^a-z0-9]/g, " ");
 
 /**
- * Search for a song name in the database
- *
- * @param db
- * @param {String} query
- * @returns {String[]}
- */
-const searchSongs = (query) => {
-  const cleanQuery = cleanString(query);
-  return state.songNames.filter((song) =>
-    cleanString(song).includes(cleanQuery)
-  );
-};
-
-/**
- * Highlight a search term in an array of strings, ignoring special characters and case.
+ * Highlight a query string in an array of strings, ignoring special characters and case.
  *
  * @example
- * highlightSearch(["hello", "world"], "o") // ["hell<span class='saHighlight'>o</span>", "w<span class='saHighlight'>o</span>rld"]
+ * highlightQuery(["hello", "world"], "o") // ["hell<span class='saHighlight'>o</span>", "w<span class='saHighlight'>o</span>rld"]
  *
- * @param {String[]} songs
+ * @param {String[]} array
  * @param {String} highlight
+ * @param {String} spanClass
  */
-const highlightSearch = (songs, highlight) => {
+const highlightQuery = (array, highlight, spanClass = "saHighlight") => {
   const cleanHighlight = cleanString(highlight);
-  return songs.map((song) => {
+  return array.map((song) => {
     const cleanSong = cleanString(song);
     const index = cleanSong.indexOf(cleanHighlight);
     if (index === -1) return song;
-    return `${song.slice(0, index)}<span class='saHighlight'>${song.slice(
+    return `${song.slice(0, index)}<span class='${spanClass}'>${song.slice(
       index,
       index + highlight.length
     )}</span>${song.slice(index + highlight.length)}`;
   });
 };
 
+class StoredArray {
+  /**
+   * An array stored both in memory and in the database, which can be queried.
+   *
+   * @param {SongArtistDB} songArtistDB
+   * @param {String} store
+   */
+  constructor(songArtistDB, store) {
+    this.songArtistDB = songArtistDB;
+    this.store = store;
+
+    /**
+     * @type {String[]}
+     */
+    this.array = [];
+  }
+
+  /**
+   * Return the array
+   */
+  get() {
+    return this.array;
+  }
+
+  /**
+   * Initialize the array from the db.
+   */
+  async load() {
+    this.array = await this.songArtistDB.listFromStore(this.store);
+  }
+
+  /**
+   * Append a value to the array (and sync with the db).
+   *
+   * @param {String} value
+   */
+  async append(value) {
+    await this.songArtistDB.appendValueToStore(value, this.store);
+    this.array.push(value);
+  }
+
+  /**
+   * Return all the items matching a query string
+   *
+   * @param {String} query
+   * @param {Boolean} highlight Whether to highlight the query in the results, by wrapping the matching part with a span
+   */
+  search(query) {
+    const cleanQuery = cleanString(query);
+
+    return this.array.filter((item) => cleanString(item).includes(cleanQuery));
+  }
+}
+
+class SongArtistDB {
+  /**
+   * Interface to store arrays in the indexedDB.
+   *
+   * @param {String[]} storeNames
+   */
+  constructor(storeNames) {
+    this.db = null;
+    this.storeNames = storeNames;
+  }
+
+  /**
+   * Create an array store (if not exists) containing all items with
+   */
+  createArrayStore(db, name) {
+    if (!db.objectStoreNames.contains(name)) {
+      const store = db.createObjectStore(name, { keyPath: "name" });
+      store.createIndex("name", "name", { unique: true });
+    }
+  }
+
+  /**
+   * Check if the browser supports IndexedDB
+   *
+   * @returns {Boolean} True if the browser supports IndexedDB
+   */
+  checkCompatibility() {
+    if (!("indexedDB" in window)) {
+      console.error(
+        "This browser doesn't support IndexedDB, so this script cannot work!"
+      );
+      return false;
+    }
+    console.log("IndexedDB is supported!");
+    return true;
+  }
+
+  /**
+   * Initialize the stores
+   */
+  async init() {
+    if (!this.checkCompatibility()) return;
+    if (this.db) return;
+
+    this.db = await idb.openDB("AMQSongArtists", 1, {
+      upgrade(db) {
+        this.storeNames.forEach((name) => this.createArrayStore(db, name));
+      },
+    });
+  }
+
+  /**
+   * Append an item to a store
+   *
+   * @param {String} value
+   * @param {String} store The name of the store to append the value to
+   */
+  async appendValueToStore(value, store) {
+    if (!this.db) return;
+
+    try {
+      const tx = this.db.transaction(store, "readwrite");
+      await Promise.all([tx.store.add({ name: value }), tx.done]);
+    } catch (error) {
+      console.debug(`${value} already exists in ${store}, nothing to do`);
+    }
+  }
+
+  /**
+   * Retrieve all the items from a store
+   *
+   * @param {String} store
+   */
+  async listFromStore(store) {
+    return this.db.getAll(store).then((items) => items.map(({ name }) => name));
+  }
+
+  /**
+   * Interface for a store
+   */
+  async getStore(store) {
+    const array = new StoredArray(this, store); //Could be improved
+    await array.load();
+
+    return array;
+  }
+}
+
 class Dropdown {
   /**
    * Append a dropdown to the container.
    *
-   * @param {JQuery} container JQuery object to append the dropdown to.
+   * @param {jQuery} container JQuery object to append the dropdown to.
    * @param {Object} options
    * @param {(value: String) => void} options.onClick The function to call when a dropdown item is clicked (or when pressing Enter on it). The text of the item is passed as an argument.
    * @param {String} options.customClass The class to add to the dropdown.
@@ -279,302 +332,205 @@ class Dropdown {
   }
 }
 
-// TODO: Script does not reload when rejoining a game!
+class SongField {
+  /**
+   * Add the S/A fields to the page.
+   *
+   * @param {String} id
+   * @param {StoredArray} songs Songs to be used for the song name dropdown
+   */
+  constructor(id, songs) {
+    this.id = id;
 
-/**
- * Send answer
- *
- * @param {String} answer
- */
-const submitAnswer = (answer) => {
-  $("#qpAnswerInput").val(answer);
-  quiz.answerInput.submitAnswer(true);
-};
+    this.songs = songs;
+    this.container = null;
+    this.songInputContainer = null;
 
-/**
- * Build string with anime & s/a
- */
-const buildSongArtistAnswer = (song) => `${state.animeGuess}<>${song}`;
-
-/**
- * Setup s/a fields
- */
-const setupSongArtistFields = () => {
-  // Avoid adding the fields multiple times
-  if (document.getElementById(SA_FIELDS_ID)) return;
-
-  // Main container (starts hidden)
-  const container = $(`<div style="display: none;"></div>`).attr(
-    "id",
-    SA_FIELDS_ID
-  );
-  $("#qpAnimeCenterContainer").append(container);
-
-  const songInputContainer = $(
-    `<div class="floatingContainer saAnswerField"></div>`
-  );
-  container.append(songInputContainer);
-
-  // Input field
-  const songInput = $(
-    `<input type="text" class="flatTextInput" id="saSongInput" placeholder="Song Title" maxLength="150"/>`
-  );
-  songInputContainer.append(songInput);
-
-  songInput.on("input", (e) => {
-    //TODO This field should be disabled a few seconds before the guess ends
-    // Or at least it should be debounced
-    submitAnswer(buildSongArtistAnswer(e.target.value));
-  });
-
-  // Dropdown
-  const dropdown = new Dropdown(songInputContainer, {
-    onClickCallback: (value) => {
-      songInput.val(value);
-      songInput.focus();
-      submitAnswer(buildSongArtistAnswer(value));
-    },
-  });
-
-  songInput.on("input", (e) => {
-    const value = e.target.value;
-    const songs = searchSongs(value);
-    dropdown.load(highlightSearch(songs, value));
-  });
-
-  const animeAnswerInput = $("#qpAnswerInput");
-
-  animeAnswerInput.on("focus", function () {
-    $(this).val(state.animeGuess);
-  });
-
-  animeAnswerInput.on("blur", function (e) {
-    state.animeGuess = e.target.value;
-    $(this).val(buildSongArtistAnswer(songInput.val()));
-  });
-};
-
-/**
- * Toggle the script on/off
- */
-const toggleScript = () => {
-  state.active = !state.active;
-
-  gameChat.systemMessage(
-    `S/A Script is now ${state.active ? "enabled" : "disabled"}`
-  );
-
-  let songArtistFields = $(`#${SA_FIELDS_ID}`);
-  if (songArtistFields) {
-    state.active ? songArtistFields.show() : songArtistFields.hide();
-  }
-};
-
-/**
- * Disable input to the s/a fields
- */
-const lockSongArtistFields = () => {
-  //TODO
-};
-
-/**
- * Reset the state
- */
-const resetState = () => {
-  state.animeGuess = "";
-
-  // Reset the input fields
-  $("#saSongInput").val("");
-  $("#qpAnswerInput").val("");
-};
-
-/**
- * Wait a timeout
- */
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * Setup the players
- */
-const setupPlayers = async (players) => {
-  // Wait for quiz.players to finish setup
-  while (window.quiz.players === undefined || window.quiz.players === null) {
-    await sleep(250);
+    /** @type {jQuery} */
+    this.songInput = null;
   }
 
-  console.log({ players: window.quiz.players });
+  init() {
+    // Avoid creating the fields multiple times
+    if (document.getElementById(this.id)) return;
 
-  // Reset
-  state.players.clear();
+    this.container = $(
+      `<div id="${this.id}" style="display: none;"></div>`
+    ).appendTo($("#qpAnimeCenterContainer"));
 
-  players.forEach(({ gamePlayerId }) => {
-    const avatarSlot = window.quiz.players[gamePlayerId].avatarSlot;
-    state.players.set(gamePlayerId, avatarSlot);
-
-    const animeAnswerContainer = avatarSlot.$answerContainer;
-
-    const songAnswerElement = animeAnswerContainer[0].cloneNode(true);
-    songAnswerElement.style = "top:20px";
-    avatarSlot.$innerContainer[0].appendChild(songAnswerElement);
-
-    avatarSlot.$songAnswerContainer = $(songAnswerElement);
-    avatarSlot.$songAnswerContainerText = avatarSlot.$songAnswerContainer.find(
-      ".qpAvatarAnswerText"
+    this.songInputContainer = $(
+      `<div class="floatingContainer saAnswerField"></div>`
     );
+    this.container.append(this.songInputContainer);
 
-    const artistAnswerElement = animeAnswerContainer[0].cloneNode(true);
-    artistAnswerElement.style = "top:60px";
-    avatarSlot.$innerContainer[0].appendChild(artistAnswerElement);
-    avatarSlot.$artistAnswerContainer = $(artistAnswerElement);
-    avatarSlot.$artistAnswerContainerText =
-      avatarSlot.$artistAnswerContainer.find(".qpAvatarAnswerText");
-  });
-};
-
-/**
- * Show a song guess
- */
-const showAnswer = ({ gamePlayerId, answer }) => {
-  const answerContainer = state.players.get(gamePlayerId).$songAnswerContainer;
-  const answerText = state.players.get(gamePlayerId).$songAnswerContainerText;
-
-  // Remove a class from a JQuery element
-
-  if (!answer) {
-    answerContainer.addClass("hide");
-  } else {
-    answerContainer.removeClass("hide");
-  }
-  answerText.text(answer);
-  window.fitTextToContainer(answerText, answerContainer, 23, 9); // The numbers, mason, what do they mean?
-};
-
-/**
- * Setup the script
- */
-const setup = async () => {
-  if (!checkCompatibility()) return;
-
-  try {
-    const db = await setupIndexedDB();
-
-    // Load the song names from the database
-    state.songNames = await db
-      .getAll(SONG_STORE)
-      .then((songs) => songs.map(({ name }) => name));
-
-    /**
-     * Expand local db by taking the data from the song info
-     * (This will work in the background even when the script is disabled, so the local db will continue to be expanded)
-     */
-    const onAnswerResults = new Listener(
-      "answer results",
-      async (/** @type {AnswerResults}*/ result) => {
-        await appendSong(db, {
-          songName: result.songInfo.songName,
-          artist: result.songInfo.artist,
-        });
-      }
+    // Input field
+    this.songInput = $(
+      `<input type="text" class="flatTextInput" id="saSongInput" placeholder="Song Title" maxLength="150"/>`
     );
-    onAnswerResults.bindListener();
+    this.songInputContainer.append(this.songInput);
+
+    // Dropdown
+    const dropdown = new Dropdown(this.songInputContainer, {
+      onClickCallback: (value) => {
+        this.songInput.val(value);
+        this.songInput.focus();
+        // submitAnswer(buildSongArtistAnswer(value));
+      },
+    });
+
+    this.songInput.on("input", (e) => {
+      const value = e.target.value;
+      const results = this.songs.search(value);
+      dropdown.load(highlightQuery(results, value));
+    });
+
+    // this.songInput.on("input", (e) => {
+    //   submitAnswer(buildSongArtistAnswer(e.target.value));
+    // });
+
+    // const animeAnswerInput = $("#qpAnswerInput");
+
+    // animeAnswerInput.on("focus", function () {
+    //   if (state.active) $(this).val(state.animeGuess);
+    // });
+
+    // animeAnswerInput.on("blur", function (e) {
+    //   if (state.active) {
+    //     state.animeGuess = e.target.value;
+    //     $(this).val(buildSongArtistAnswer(songInput.val()));
+    //   }
+    // });
+  }
+
+  /**
+   * Hide/show the S/A fields
+   */
+  hide() {
+    this.container.hide();
+  }
+
+  show() {
+    this.container.show();
+  }
+
+  reset() {
+    this.songInput.val("");
+  }
+}
+
+class TeamSongArtist {
+  constructor() {
+    this.active = false;
+    this.db = new SongArtistDB([SONG_STORE, ARTIST_STORE]);
 
     /**
-     * Handle keyboard commands
+     * @type {Record<String, Listener>}
      */
-    const handleCommands = (e) => {
-      if (e.altKey && e.key == "g") {
-        toggleScript();
-      }
-    };
+    this.listeners = {};
 
-    /**
-     * Setup when a quiz starts
-     */
-    const onQuizReady = new Listener("quiz ready", async () => {
-      setupSongArtistFields();
+    // Fields
+    this.songField = null;
+  }
+
+  /**
+   * Initialize the script
+   */
+  async init() {
+    try {
+      this.setupMetadata();
+
+      await this.db.init();
+
+      const songs = await this.db.getStore(SONG_STORE);
+      const artists = await this.db.getStore(ARTIST_STORE);
+
+      this.songField = new SongField(SA_FIELDS_ID, songs);
+
+      /**
+       * Expand local db by taking the data from the song info
+       * (This will work in the background even when the script is disabled, so the local db will continue to be expanded)
+       */
+      const onAnswerResults = new Listener(
+        "answer results",
+        async (/** @type {AnswerResults}*/ result) => {
+          await songs.append(result.songInfo.songName);
+          await artists.append(result.songInfo.artist);
+        }
+      );
+      onAnswerResults.bindListener();
+
+      this.setupListeners();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  /**
+   * Activate/deactivate the script
+   */
+  toggleScript() {
+    this.active = !this.active;
+
+    this.active ? this.songField.show() : this.songField.hide();
+
+    gameChat.systemMessage(
+      `S/A Script is now ${this.active ? "enabled" : "disabled"}`
+    );
+  }
+
+  /**
+   * Handle keyboard commands
+   */
+  handleCommands(e) {
+    // ALT+G to toggle the script
+    if (e.altKey && e.key == "g") {
+      this.toggleScript();
+    }
+  }
+
+  /**
+   * Reset the state
+   */
+  resetState() {
+    this.songField.reset();
+  }
+
+  /**
+   * Instantiate all the listeners for the game's events
+   */
+  setupListeners() {
+    const handleCommands = this.handleCommands.bind(this);
+
+    this.listeners["onQuizReady"] = new Listener("quiz ready", async () => {
+      console.debug("[TeamSongArtist] QuizReady");
+      this.songField.init();
+      this.resetState();
       gameChat.systemMessage("S/A Script loaded!");
       gameChat.systemMessage("Press [Alt+G] to activate S/A mode");
       document.addEventListener("keydown", handleCommands);
-      resetState();
     });
-    onQuizReady.bindListener();
 
-    /**
-     * Teardown when a quiz ends
-     */
-    const onQuizEnd = new Listener("quiz end result", () => {
+    this.listeners["onQuizEnd"] = new Listener("quiz end result", () => {
+      console.debug("[TeamSongArtist] QuizEnd");
       document.removeEventListener("keydown", handleCommands);
     });
-    onQuizEnd.bindListener();
 
-    /**
-     * Submit the anime guess at the end
-     */
-    const onGuessPhaseOver = new Listener("guess phase over", () => {
-      if (state.active) {
-        // Reset answer to only the anime title
-        submitAnswer(state.animeGuess);
-      }
+    this.listeners["onPlayNextSong"] = new Listener("play next song", () => {
+      console.debug("[TeamSongArtist] PlayNextSong");
+      this.resetState();
     });
-    onGuessPhaseOver.bindListener();
 
-    /**
-     * Lock the song/artist fields when showing the answers after the guess phase
-     */
-    const onPlayerAnswers = new Listener("player answers", () => {
-      if (state.active) {
-        lockSongArtistFields();
-
-        // For each key in state.players Map
-        for (const [gamePlayerId, avatarSlot] of state.players.entries()) {
-          // Hide the answer containers
-          showAnswer({ gamePlayerId, answer: "Ciao" }); //TODO Insert the correct song name here (to be managed in the state), and do it only for the current player
-        }
-
-        console.log({ statePlayers: state.players });
-      }
-    });
-    onPlayerAnswers.bindListener();
-
-    /**
-     * Reset state when next song plays
-     */
-    const onPlayNextSong = new Listener("play next song", () => {
-      if (state.active) {
-        resetState();
-      }
-    });
-    onPlayNextSong.bindListener();
-
-    /**
-     * Setup players when the game starts
-     */
-    const onGameStarting = new Listener("Game Starting", ({ players }) => {
-      if (state.active) {
-        setupPlayers(players);
-      }
-    });
-    onGameStarting.bindListener();
-
-    /**
-     * Listen to team answers
-     */
-    const onTeamMemberAnswer = new Listener(
-      "team member answer",
-      (/** @type {TeamMemberAnswer} */ data) => {
-        if (state.active) {
-          // Show the answer for that player
-          const parts = data.answer.split("<>");
-          const songName = parts[parts.length - 1];
-          showAnswer({ gamePlayerId: data.gamePlayerId, answer: songName });
-        }
-      }
+    // Bind all the listeners
+    Object.values(this.listeners).forEach((listener) =>
+      listener.bindListener()
     );
-    onTeamMemberAnswer.bindListener();
+  }
 
-    /**
-     * Metadata
-     */
+  /**
+   * Add metadata to the "Installed Userscripts" list & populate CSS
+   */
+  setupMetadata() {
+    // eslint-disable-next-line no-undef
     AMQ_addScriptData({
       name: "AMQ Song/Artist",
       author: "Einlar",
@@ -585,6 +541,7 @@ const setup = async () => {
       `,
     });
 
+    // eslint-disable-next-line no-undef
     AMQ_addStyle(`
       .saAnswerField {
         width: 80%;
@@ -626,9 +583,15 @@ const setup = async () => {
         background: #3d6d8f;
       }
     `);
-  } catch (e) {
-    console.error(e);
   }
+}
+
+/**
+ * Setup the script
+ */
+const setup = async () => {
+  const teamSongArtist = new TeamSongArtist();
+  await teamSongArtist.init();
 };
 
 /**
