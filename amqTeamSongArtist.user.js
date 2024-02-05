@@ -54,6 +54,9 @@ const idb = /** @type {import('idb')} */ (window.idb);
 const gameChat = /** @type {GameChat} */ (window.gameChat);
 const Listener = window.Listener;
 
+/** @type {String} Temporary variable for a test */ //TODO FIX
+let myAnswer = "";
+
 /**
  * Constants
  */
@@ -96,6 +99,32 @@ const highlightQuery = (array, highlight, spanClass = "saHighlight") => {
       index + highlight.length
     )}</span>${song.slice(index + highlight.length)}`;
   });
+};
+
+/**
+ * Wait a timeout
+ *
+ * @param {Number} ms
+ */
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Wait for a variable to be defined up to a timeout (after which return null)
+ *
+ * @template T
+ * @param {() => T} getter
+ * @param {Number} timeout
+ * @returns {Promise<T | null>}
+ */
+const waitForVariable = async (getter, timeout = 15000) => {
+  const start = Date.now();
+  let variable = getter();
+  while (variable === undefined || variable === null) {
+    if (Date.now() - start > timeout) return null;
+    await sleep(250);
+    variable = getter();
+  }
+  return variable;
 };
 
 class StoredArray {
@@ -246,14 +275,14 @@ class Dropdown {
    *
    * @param {jQuery} container JQuery object to append the dropdown to.
    * @param {Object} options
-   * @param {(value: String) => void} options.onClick The function to call when a dropdown item is clicked (or when pressing Enter on it). The text of the item is passed as an argument.
+   * @param {(value: String) => void} options.onSelectCallback The function to call when a dropdown item is clicked (or when pressing Enter on it). The text of the item is passed as an argument.
    * @param {String} options.customClass The class to add to the dropdown.
    * @param {Number} options.maxItems The maximum number of items to show in the dropdown.
    */
   constructor(
     container,
     {
-      onClickCallback,
+      onSelectCallback,
       customClass = "saDropdown",
       maxItems = MAX_DROPDOWN_ITEMS,
     } = {}
@@ -264,7 +293,7 @@ class Dropdown {
     );
     this.container.append(this.dropdown);
     this.index = -1;
-    this.onClickCallback = onClickCallback;
+    this.onSelectCallback = onSelectCallback;
     this.maxItems = maxItems;
 
     // Allow to select the dropdown items with the arrow keys
@@ -295,7 +324,7 @@ class Dropdown {
       const li = $('<li class="saDropdownItem" tabindex="-1"></li>');
       li.html(value);
       li.on("click", (e) => {
-        this.onClickCallback(e.target.innerText);
+        this.onSelectCallback(e.target.innerText);
         this.dropdown.hide();
       });
       this.dropdown.append(li);
@@ -324,7 +353,7 @@ class Dropdown {
       } else if (e.key === "Enter") {
         e.preventDefault();
         if (this.index !== -1) {
-          this.onClickCallback(this.dropdown.children().eq(this.index).text());
+          this.onSelectCallback(this.dropdown.children().eq(this.index).text());
           this.dropdown.hide();
         }
       }
@@ -371,9 +400,10 @@ class SongField {
 
     // Dropdown
     const dropdown = new Dropdown(this.songInputContainer, {
-      onClickCallback: (value) => {
+      onSelectCallback: (value) => {
         this.songInput.val(value);
         this.songInput.focus();
+        myAnswer = value; //TODO Fix
         // submitAnswer(buildSongArtistAnswer(value));
       },
     });
@@ -418,10 +448,170 @@ class SongField {
   }
 }
 
+class AnswerField {
+  /**
+   * A field on the avatar slot to display a player's answer.
+   *
+   * @param {Object} avatarSlot From quiz.players[gamePlayerId].avatarSlot
+   * @param {number} index The index of the field (0 for song, 1 for artist)
+   */
+  constructor(avatarSlot, index) {
+    this.element = avatarSlot.$answerContainer[0].cloneNode(true);
+    this.element.style = `top:${20 + 40 * index}px`;
+    avatarSlot.$innerContainer[0].appendChild(this.element);
+
+    this.answerContainer = $(this.element);
+    this.answerContainerText = this.answerContainer.find(".qpAvatarAnswerText");
+  }
+
+  /**
+   * Display an answer in the field. If the answer is empty, hide the field.
+   *
+   * @param {string} answer
+   */
+  revealAnswer(answer) {
+    !answer
+      ? this.answerContainer.addClass("hide")
+      : this.answerContainer.removeClass("hide");
+
+    this.answerContainerText.text(answer);
+    window.fitTextToContainer(
+      this.answerContainerText,
+      this.answerContainer,
+      23,
+      9
+    );
+  }
+
+  /**
+   * Highlight the field with green (correct) or red (wrong)
+   *
+   * @param {boolean} correct
+   */
+  highlight(correct) {
+    this.answerContainerText.addClass(correct ? "rightAnswer" : "wrongAnswer");
+  }
+
+  /**
+   * Reset the field
+   */
+  reset() {
+    this.answerContainer.addClass("hide");
+    this.answerContainerText.text("");
+    this.answerContainerText.removeClass("wrongAnswer");
+    this.answerContainerText.removeClass("rightAnswer");
+  }
+}
+
+/**
+ * @typedef {Object} PlayerFields
+ * @property {AnswerField} song
+ * @property {Boolean} isSelf
+ *
+ * @typedef {Object} QuizPlayerData
+ * @property {Object} avatarSlot
+ * @property {Boolean} isSelf
+ * @property {String} _name
+ * @property {Boolean} _host
+ *
+ * @typedef {Record<number, QuizPlayerData>} QuizPlayers
+ */
+
+class Players {
+  /**
+   * Manage the state of players and their fields.
+   */
+  constructor() {
+    /**
+     * Map of player IDs to their fields
+     * @type {Map<number, PlayerFields>}
+     */
+    this.players = new Map();
+
+    /**
+     * Id of the current player
+     *
+     * @type {number}
+     */
+    this.currentPlayerId = -1;
+  }
+
+  /**
+   * Initialize the players given their ids. Must be called after a game starts, when window.quiz.players is defined.
+   *
+   * @param {number[]} playerIds
+   */
+  async init(playerIds) {
+    // Start from a clean state
+    this.reset();
+
+    const players = await waitForVariable(
+      () => /** @type {QuizPlayers} */ (window.quiz.players)
+    );
+
+    if (!players) {
+      gameChat.systemMessage(
+        "Something went wrong while initializing the players, so S/A won't work! Sorry :("
+      );
+      return;
+    }
+
+    playerIds.forEach((id) => {
+      const player = players[id];
+      const { avatarSlot, isSelf } = player;
+
+      if (isSelf) this.currentPlayerId = id;
+
+      this.players.set(id, {
+        song: new AnswerField(avatarSlot, 0),
+        isSelf,
+      });
+    });
+
+    console.log({ players: this.players });
+  }
+
+  /**
+   * Reset answers
+   */
+  resetAllAnswers() {
+    this.players.forEach((player) => {
+      player.song.reset();
+    });
+  }
+
+  /**
+   * Reset the state
+   */
+  reset() {
+    this.resetAllAnswers();
+    this.players.clear();
+
+    //TODO Should probably remove the fields from the DOM too...
+  }
+
+  /**
+   * Get a player by id
+   *
+   * @type {number} id
+   */
+  getById(id) {
+    return this.players.get(id);
+  }
+
+  /**
+   * Get the current player
+   */
+  getSelf() {
+    return this.players.get(this.currentPlayerId);
+  }
+}
+
 class TeamSongArtist {
   constructor() {
     this.active = false;
     this.db = new SongArtistDB([SONG_STORE, ARTIST_STORE]);
+    this.players = new Players();
 
     /**
      * @type {Record<String, Listener>}
@@ -471,7 +661,11 @@ class TeamSongArtist {
   toggleScript() {
     this.active = !this.active;
 
+    // Hide/show the s/a fields
     this.active ? this.songField.show() : this.songField.hide();
+
+    // Reset when deactivating
+    if (!this.active) this.players.resetAllAnswers();
 
     gameChat.systemMessage(
       `S/A Script is now ${this.active ? "enabled" : "disabled"}`
@@ -493,6 +687,8 @@ class TeamSongArtist {
    */
   resetState() {
     this.songField.reset();
+    this.players.resetAllAnswers();
+    myAnswer = ""; //TODO FIX
   }
 
   /**
@@ -518,6 +714,21 @@ class TeamSongArtist {
     this.listeners["onPlayNextSong"] = new Listener("play next song", () => {
       console.debug("[TeamSongArtist] PlayNextSong");
       this.resetState();
+    });
+
+    this.listeners["onGameStarting"] = new Listener(
+      "Game Starting",
+      async ({ players }) => {
+        const playerIds = players.map(({ gamePlayerId }) => gamePlayerId);
+
+        await this.players.init(playerIds);
+      }
+    );
+
+    this.listeners["onPlayerAnswers"] = new Listener("player answers", () => {
+      if (this.active) {
+        this.players.getSelf()?.song.revealAnswer(myAnswer);
+      }
     });
 
     // Bind all the listeners
@@ -590,7 +801,7 @@ class TeamSongArtist {
  * Setup the script
  */
 const setup = async () => {
-  const teamSongArtist = new TeamSongArtist();
+  const teamSongArtist = new TeamSongArtist(); //TODO add to window?
   await teamSongArtist.init();
 };
 
