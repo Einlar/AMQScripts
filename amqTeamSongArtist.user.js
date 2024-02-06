@@ -279,13 +279,6 @@ class SongArtistDB {
 }
 
 /**
- * @typedef {Object} EventMap
- * @property {onPush} push
- * @property {() => void} pull
- * @property {(a: number, b: number) => void} merge
- */
-
-/**
  * A simple event handler with JSDoc type hints.
  *
  * @template {Record<string, (...args: any[]) => void>} Type
@@ -589,6 +582,72 @@ class AnswerField {
   }
 }
 
+class ScoreBoard {
+  /**
+   * Manage the state of the S/A scoreboard.
+   */
+  constructor() {
+    this.container = $('<div id="saScoreboard"></div>');
+    this.container.appendTo($("#qpStandingContainer"));
+    $("<div><h3>S/A Standings</h3></div>").appendTo(this.container);
+
+    this.container.hide(); // Start hidden
+
+    /**
+     * @typedef {Object} ScoreElements
+     * @property {JQuery<HTMLElement>} rank
+     * @property {JQuery<HTMLElement>} score
+     */
+
+    /** @type {Record<number, ScoreElements>} */
+    this.scores = {};
+  }
+
+  remove() {
+    this.container.remove();
+  }
+
+  show() {
+    this.container.show();
+  }
+
+  hide() {
+    this.container.hide();
+  }
+
+  /**
+   * Add a new player to the scoreboard
+   *
+   * @param {number} gamePlayerId
+   * @param {String} name
+   */
+  addScore(gamePlayerId, name) {
+    const rowContainer = $(
+      '<div class="saStandingItemContainer"></div>'
+    ).appendTo(this.container);
+    const row = $('<div class="qpStandingItem"></div>').appendTo(rowContainer);
+    const playerRank = $('<div class="qpScoreBoardNumber"></div>').appendTo(
+      row
+    );
+    const playerEntry = $('<div class="qpScoreBoardEntry"></div>').appendTo(
+      row
+    );
+
+    const p = $('<p style="font-size: 14px"></p>').appendTo(playerEntry);
+    const playerScore = $('<b class="qpsPlayerScore"></b>').appendTo(p);
+    const playerName = $('<span class="qpsPlayerName"></span>').appendTo(p);
+
+    playerRank.text("1");
+    playerScore.text("0");
+    playerName.text(` ${name}`);
+
+    this.scores[gamePlayerId] = {
+      rank: playerRank,
+      score: playerScore,
+    };
+  }
+}
+
 /**
  * @typedef {Object} PlayerFields
  * @property {AnswerField} song
@@ -707,6 +766,8 @@ class TeamSongArtist {
 
     // Fields
     this.songField = null;
+    /** @type {ScoreBoard | null} */
+    this.scoreboard = null;
   }
 
   /**
@@ -750,6 +811,7 @@ class TeamSongArtist {
 
     // Hide/show the s/a fields
     this.active ? this.songField?.show() : this.songField?.hide();
+    this.active ? this.scoreboard?.show() : this.scoreboard?.hide();
 
     // Reset when deactivating
     if (!this.active) this.players.resetAllAnswers();
@@ -809,6 +871,12 @@ class TeamSongArtist {
         const playerIds = players.map(({ gamePlayerId }) => gamePlayerId);
 
         await this.players.init(playerIds);
+
+        this.scoreboard = new ScoreBoard();
+        players.forEach(({ gamePlayerId, name }) => {
+          this.scoreboard?.addScore(gamePlayerId, name);
+        });
+        if (this.active) this.scoreboard.show();
       }
     );
 
@@ -881,6 +949,13 @@ class TeamSongArtist {
 
       .saDropdownItem:hover, .saDropdownItem:focus {
         background: #3d6d8f;
+      }
+
+      .saStandingItemContainer {
+        height: 35px;
+        margin-top: 5px;
+        margin-bottom: 5px;
+        position: relative;
       }
     `);
   }
