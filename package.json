@@ -9,6 +9,7 @@
   "author": "Einlar",
   "license": "ISC",
   "devDependencies": {
+    "@types/jquery": "^3.5.29",
     "eslint": "^8.56.0"
   },
   "dependencies": {
