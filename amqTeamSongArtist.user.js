@@ -278,23 +278,89 @@ class SongArtistDB {
   }
 }
 
+/**
+ * @typedef {Object} EventMap
+ * @property {onPush} push
+ * @property {() => void} pull
+ * @property {(a: number, b: number) => void} merge
+ */
+
+/**
+ * A simple event handler with JSDoc type hints.
+ *
+ * @template {Record<string, (...args: any[]) => void>} Type
+ */
+class EventHandler {
+  constructor() {
+    /**
+
+     * @type {Partial<Record<keyof Type, Type[keyof Type][]>>}
+     */
+    this.listeners = {};
+  }
+
+  /**
+   * Add a listener for an event.
+   *
+   * @template {keyof Type} K
+   * @param {K} event
+   * @param {Type[K]} callback
+   * @returns {void}
+   */
+  on(event, callback) {
+    if (!this.listeners[event]) {
+      this.listeners[event] = [];
+    }
+    this.listeners[event]?.push(callback);
+  }
+
+  /**
+   * Remove a listener for an event.
+   *
+   * @template {keyof Type} K
+   * @param {K} event
+   * @param {Type[K]} callback
+   * @returns {void}
+   */
+  off(event, callback) {
+    if (this.listeners[event]) {
+      this.listeners[event] = this.listeners[event]?.filter(
+        (listener) => listener !== callback
+      );
+    }
+  }
+
+  /**
+   * Emit an event.
+   *
+   * @template {keyof Type} K
+   * @param {K} event
+   * @param {Parameters<Type[K]>} args
+   * @returns {void}
+   */
+  emit(event, ...args) {
+    this.listeners[event]?.forEach((listener) => listener(...args));
+  }
+}
+
+/**
+ * @typedef {Object} DropdownEvents
+ * @property {(selectedItem: string) => void} select
+ */
 class Dropdown {
   /**
    * Append a dropdown to the container.
    *
    * @param {JQuery<HTMLElement>} container JQuery object to append the dropdown to.
    * @param {Object} options
-   * @param {(value: String) => void} options.onSelectCallback The function to call when a dropdown item is clicked (or when pressing Enter on it). The text of the item is passed as an argument.
    * @param {String} [options.customClass] The class to add to the dropdown.
    * @param {Number} [options.maxItems] The maximum number of items to show in the dropdown.
+   *
+   * @emits select Item that is selected
    */
   constructor(
     container,
-    {
-      onSelectCallback,
-      customClass = "saDropdown",
-      maxItems = MAX_DROPDOWN_ITEMS,
-    }
+    { customClass = "saDropdown", maxItems = MAX_DROPDOWN_ITEMS } = {}
   ) {
     this.container = container;
     this.dropdown = $(
@@ -302,7 +368,6 @@ class Dropdown {
     );
     this.container.append(this.dropdown);
     this.index = -1;
-    this.onSelectCallback = onSelectCallback;
     this.maxItems = maxItems;
 
     // Allow to select the dropdown items with the arrow keys
@@ -315,6 +380,11 @@ class Dropdown {
         this.dropdown.hide();
       }
     });
+
+    // Add events
+
+    /** @type {EventHandler<DropdownEvents>} */
+    this.events = new EventHandler();
   }
 
   /**
@@ -335,7 +405,7 @@ class Dropdown {
       const li = $('<li class="saDropdownItem" tabindex="-1"></li>');
       li.html(value);
       li.on("click", (e) => {
-        this.onSelectCallback(e.target.innerText);
+        this.events.emit("select", e.target.innerText);
         this.dropdown.hide();
       });
       this.dropdown.append(li);
@@ -364,7 +434,10 @@ class Dropdown {
       } else if (e.key === "Enter") {
         e.preventDefault();
         if (this.index !== -1) {
-          this.onSelectCallback(this.dropdown.children().eq(this.index).text());
+          this.events.emit(
+            "select",
+            this.dropdown.children().eq(this.index).text()
+          );
           this.dropdown.hide();
         }
       }
@@ -410,13 +483,12 @@ class SongField {
     this.songInputContainer.append(this.songInput);
 
     // Dropdown
-    const dropdown = new Dropdown(this.songInputContainer, {
-      onSelectCallback: (value) => {
-        this.songInput?.val(value);
-        this.songInput?.trigger("focus");
-        myAnswer = value; //TODO Fix
-        // submitAnswer(buildSongArtistAnswer(value));
-      },
+    const dropdown = new Dropdown(this.songInputContainer);
+
+    dropdown.events.on("select", (selectedItem) => {
+      this.songInput?.val(selectedItem);
+      this.songInput?.trigger("focus");
+      myAnswer = selectedItem; //TODO Fix
     });
 
     this.songInput.on("input", (e) => {
