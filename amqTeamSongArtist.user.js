@@ -23,6 +23,8 @@
  * - Working with Indexed DB: https://web.dev/articles/indexeddb
  */
 
+//@ts-check
+
 /**
  * Types
  *
@@ -50,8 +52,11 @@
 /**
  * Globals
  */
+// @ts-ignore
 const idb = /** @type {import('idb')} */ (window.idb);
+// @ts-ignore
 const gameChat = /** @type {GameChat} */ (window.gameChat);
+// @ts-ignore
 const Listener = window.Listener;
 
 /** @type {String} Temporary variable for a test */ //TODO FIX
@@ -106,7 +111,7 @@ const highlightQuery = (array, highlight, spanClass = "saHighlight") => {
  *
  * @param {Number} ms
  */
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleepMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Wait for a variable to be defined up to a timeout (after which return null)
@@ -121,7 +126,7 @@ const waitForVariable = async (getter, timeout = 15000) => {
   let variable = getter();
   while (variable === undefined || variable === null) {
     if (Date.now() - start > timeout) return null;
-    await sleep(250);
+    await sleepMs(250);
     variable = getter();
   }
   return variable;
@@ -172,7 +177,6 @@ class StoredArray {
    * Return all the items matching a query string
    *
    * @param {String} query
-   * @param {Boolean} highlight Whether to highlight the query in the results, by wrapping the matching part with a span
    */
   search(query) {
     const cleanQuery = cleanString(query);
@@ -226,7 +230,7 @@ class SongArtistDB {
     if (this.db) return;
 
     this.db = await idb.openDB("AMQSongArtists", 1, {
-      upgrade(db) {
+      upgrade: (db) => {
         this.storeNames.forEach((name) => this.createArrayStore(db, name));
       },
     });
@@ -253,13 +257,18 @@ class SongArtistDB {
    * Retrieve all the items from a store
    *
    * @param {String} store
+   * @returns {Promise<String[]>}
    */
   async listFromStore(store) {
+    if (!this.db) return [];
     return this.db.getAll(store).then((items) => items.map(({ name }) => name));
   }
 
   /**
    * Interface for a store
+   *
+   * @param {String} store
+   * @returns {Promise<StoredArray>}
    */
   async getStore(store) {
     const array = new StoredArray(this, store); //Could be improved
@@ -273,11 +282,11 @@ class Dropdown {
   /**
    * Append a dropdown to the container.
    *
-   * @param {jQuery} container JQuery object to append the dropdown to.
+   * @param {JQuery<HTMLElement>} container JQuery object to append the dropdown to.
    * @param {Object} options
    * @param {(value: String) => void} options.onSelectCallback The function to call when a dropdown item is clicked (or when pressing Enter on it). The text of the item is passed as an argument.
-   * @param {String} options.customClass The class to add to the dropdown.
-   * @param {Number} options.maxItems The maximum number of items to show in the dropdown.
+   * @param {String} [options.customClass] The class to add to the dropdown.
+   * @param {Number} [options.maxItems] The maximum number of items to show in the dropdown.
    */
   constructor(
     container,
@@ -285,7 +294,7 @@ class Dropdown {
       onSelectCallback,
       customClass = "saDropdown",
       maxItems = MAX_DROPDOWN_ITEMS,
-    } = {}
+    }
   ) {
     this.container = container;
     this.dropdown = $(
@@ -301,7 +310,8 @@ class Dropdown {
 
     // Close the dropdown when clicking outside
     document.addEventListener("click", (e) => {
-      if (!e.target.closest(`.${customClass}`)) {
+      const el = /** @type {HTMLElement} */ (e.target);
+      if (!el.closest(`.${customClass}`)) {
         this.dropdown.hide();
       }
     });
@@ -309,6 +319,7 @@ class Dropdown {
 
   /**
    * Load the dropdown with an array of values.
+   *
    * @param {String[] | null | undefined} values
    */
   load(values) {
@@ -317,7 +328,7 @@ class Dropdown {
     this.index = -1;
 
     // Avoid loading too many values
-    values = values.slice(0, this.maxItems);
+    values = (values ?? []).slice(0, this.maxItems);
 
     // Load the values
     for (const value of values) {
@@ -375,7 +386,7 @@ class SongField {
     this.container = null;
     this.songInputContainer = null;
 
-    /** @type {jQuery} */
+    /** @type {JQuery<HTMLElement> | null} */
     this.songInput = null;
   }
 
@@ -401,15 +412,16 @@ class SongField {
     // Dropdown
     const dropdown = new Dropdown(this.songInputContainer, {
       onSelectCallback: (value) => {
-        this.songInput.val(value);
-        this.songInput.focus();
+        this.songInput?.val(value);
+        this.songInput?.trigger("focus");
         myAnswer = value; //TODO Fix
         // submitAnswer(buildSongArtistAnswer(value));
       },
     });
 
     this.songInput.on("input", (e) => {
-      const value = e.target.value;
+      const el = /** @type {HTMLInputElement} */ (e.target);
+      const value = el.value;
       const results = this.songs.search(value);
       dropdown.load(highlightQuery(results, value));
     });
@@ -436,15 +448,15 @@ class SongField {
    * Hide/show the S/A fields
    */
   hide() {
-    this.container.hide();
+    this.container?.hide();
   }
 
   show() {
-    this.container.show();
+    this.container?.show();
   }
 
   reset() {
-    this.songInput.val("");
+    this.songInput?.val("");
   }
 }
 
@@ -475,6 +487,8 @@ class AnswerField {
       : this.answerContainer.removeClass("hide");
 
     this.answerContainerText.text(answer);
+
+    // @ts-ignore
     window.fitTextToContainer(
       this.answerContainerText,
       this.answerContainer,
@@ -546,6 +560,7 @@ class Players {
     this.reset();
 
     const players = await waitForVariable(
+      // @ts-ignore
       () => /** @type {QuizPlayers} */ (window.quiz.players)
     );
 
@@ -593,7 +608,7 @@ class Players {
   /**
    * Get a player by id
    *
-   * @type {number} id
+   * @param {number} id
    */
   getById(id) {
     return this.players.get(id);
@@ -662,7 +677,7 @@ class TeamSongArtist {
     this.active = !this.active;
 
     // Hide/show the s/a fields
-    this.active ? this.songField.show() : this.songField.hide();
+    this.active ? this.songField?.show() : this.songField?.hide();
 
     // Reset when deactivating
     if (!this.active) this.players.resetAllAnswers();
@@ -686,7 +701,7 @@ class TeamSongArtist {
    * Reset the state
    */
   resetState() {
-    this.songField.reset();
+    this.songField?.reset();
     this.players.resetAllAnswers();
     myAnswer = ""; //TODO FIX
   }
@@ -699,7 +714,7 @@ class TeamSongArtist {
 
     this.listeners["onQuizReady"] = new Listener("quiz ready", async () => {
       console.debug("[TeamSongArtist] QuizReady");
-      this.songField.init();
+      this.songField?.init();
       this.resetState();
       gameChat.systemMessage("S/A Script loaded!");
       gameChat.systemMessage("Press [Alt+G] to activate S/A mode");
@@ -741,6 +756,7 @@ class TeamSongArtist {
    * Add metadata to the "Installed Userscripts" list & populate CSS
    */
   setupMetadata() {
+    // @ts-ignore
     // eslint-disable-next-line no-undef
     AMQ_addScriptData({
       name: "AMQ Song/Artist",
@@ -752,6 +768,7 @@ class TeamSongArtist {
       `,
     });
 
+    // @ts-ignore
     // eslint-disable-next-line no-undef
     AMQ_addStyle(`
       .saAnswerField {
@@ -808,7 +825,6 @@ const setup = async () => {
 /**
  * Entrypoint: load the script after the LOADING screen is hidden
  */
-if (typeof Listener === "undefined") return;
 let loadInterval = setInterval(() => {
   if ($("#loadingScreen").hasClass("hidden")) {
     clearInterval(loadInterval);
