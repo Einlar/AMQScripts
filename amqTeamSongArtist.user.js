@@ -59,8 +59,8 @@ const gameChat = /** @type {GameChat} */ (window.gameChat);
 // @ts-ignore
 const Listener = window.Listener;
 
-/** @type {String} Temporary variable for a test */ //TODO FIX
-let myAnswer = "";
+/** @type {Number} Temporary variable for score */ //TODO Move to a better state
+let myScore = 0;
 
 /**
  * Constants
@@ -337,6 +337,48 @@ class EventHandler {
 }
 
 /**
+ * @typedef {Object} Answer
+ * @property {String} song
+ */
+class Answers {
+  /**
+   * Manage the answers of players
+   */
+  constructor() {
+    /**
+     * @type {Record<number, Answer>}
+     */
+    this.answers = {};
+  }
+
+  /**
+   * Update an answer
+   *
+   * @param {number} gamePlayerId
+   * @param {string} answer
+   */
+  updateAnswer(gamePlayerId, answer) {
+    this.answers[gamePlayerId] = { song: answer };
+  }
+
+  /**
+   * Get the unified answer
+   */
+  getAnswer() {
+    return this.answers[0]; //TODO Fix the id
+  }
+
+  /**
+   * Reset
+   */
+  reset() {
+    for (const key in this.answers) {
+      this.answers[key] = { song: "" };
+    }
+  }
+}
+
+/**
  * @typedef {Object} DropdownEvents
  * @property {(selectedItem: string) => void} select
  */
@@ -438,6 +480,11 @@ class Dropdown {
   }
 }
 
+/**
+ * @typedef {Object} SongFieldEvents
+ * @property {(song: string) => void} input
+ */
+
 class SongField {
   /**
    * Add the S/A fields to the page.
@@ -454,6 +501,9 @@ class SongField {
 
     /** @type {JQuery<HTMLElement> | null} */
     this.songInput = null;
+
+    /** @type {EventHandler<SongFieldEvents>} */
+    this.events = new EventHandler();
   }
 
   init() {
@@ -481,7 +531,7 @@ class SongField {
     dropdown.events.on("select", (selectedItem) => {
       this.songInput?.val(selectedItem);
       this.songInput?.trigger("focus");
-      myAnswer = selectedItem; //TODO Fix
+      this.events.emit("input", selectedItem);
     });
 
     this.songInput.on("input", (e) => {
@@ -489,6 +539,7 @@ class SongField {
       const value = el.value;
       const results = this.songs.search(value);
       dropdown.load(highlightQuery(results, value));
+      this.events.emit("input", value);
     });
 
     // this.songInput.on("input", (e) => {
@@ -639,12 +690,22 @@ class ScoreBoard {
 
     playerRank.text("1");
     playerScore.text("0");
-    playerName.text(` ${name}`);
+    playerName.text(` ${name}`); // Apparently even AMQ just uses spaces here O_O
 
     this.scores[gamePlayerId] = {
       rank: playerRank,
       score: playerScore,
     };
+  }
+
+  /**
+   * Update a score
+   *
+   * @param {number} gamePlayerId
+   * @param {number} newScore
+   */
+  updateScore(gamePlayerId, newScore) {
+    this.scores[gamePlayerId].score.text(newScore);
   }
 }
 
@@ -758,6 +819,7 @@ class TeamSongArtist {
     this.active = false;
     this.db = new SongArtistDB([SONG_STORE, ARTIST_STORE]);
     this.players = new Players();
+    this.answers = new Answers();
 
     /**
      * @type {Record<String, Listener>}
@@ -766,6 +828,7 @@ class TeamSongArtist {
 
     // Fields
     this.songField = null;
+
     /** @type {ScoreBoard | null} */
     this.scoreboard = null;
   }
@@ -783,6 +846,9 @@ class TeamSongArtist {
       const artists = await this.db.getStore(ARTIST_STORE);
 
       this.songField = new SongField(SA_FIELDS_ID, songs);
+      this.songField.events.on("input", (song) =>
+        this.answers.updateAnswer(0, song)
+      ); //TODO Fix the gameplayerid here
 
       /**
        * Expand local db by taking the data from the song info
@@ -837,7 +903,7 @@ class TeamSongArtist {
   resetState() {
     this.songField?.reset();
     this.players.resetAllAnswers();
-    myAnswer = ""; //TODO FIX
+    this.answers.reset();
   }
 
   /**
@@ -882,9 +948,28 @@ class TeamSongArtist {
 
     this.listeners["onPlayerAnswers"] = new Listener("player answers", () => {
       if (this.active) {
-        this.players.getSelf()?.song.revealAnswer(myAnswer);
+        this.players
+          .getSelf()
+          ?.song.revealAnswer(this.answers.getAnswer().song);
       }
     });
+
+    this.listeners["onAnswerResults"] = new Listener(
+      "answer results",
+      (/** @type {AnswerResults} */ result) => {
+        if (this.active) {
+          const currentGuess = cleanString(
+            this.answers.getAnswer()?.song ?? ""
+          );
+          const correctSong = cleanString(result.songInfo.songName);
+          const correct = currentGuess === correctSong;
+          this.players.getSelf()?.song.highlight(correct);
+
+          if (correct) myScore += 1;
+          this.scoreboard?.updateScore(0, myScore);
+        }
+      }
+    );
 
     // Bind all the listeners
     Object.values(this.listeners).forEach((listener) =>
