@@ -14,7 +14,7 @@
 
 /**
  * Excalidraw:
- * - https://excalidraw.com/#room=e19d67e06915fd41b0c9,kiwAZmjoQy00hFqPfNhc3Q
+ * - https://excalidraw.com/#json=cEVJDActZOqCgtvoWObGq,ky-47LCzmgEVjehHzX6JRw
  *
  * Sources
  * - AMQ Song History: https://github.com/Minigamer42/scripts/blob/master/src/amq%20song%20history%20(with%20localStorage).user.js
@@ -58,6 +58,8 @@ const idb = /** @type {import('idb')} */ (window.idb);
 const gameChat = /** @type {GameChat} */ (window.gameChat);
 // @ts-ignore
 const Listener = window.Listener;
+// @ts-ignore
+const socket = window.socket;
 
 /** @type {Number} Temporary variable for score */ //TODO Move to a better state
 let myScore = 0;
@@ -82,6 +84,10 @@ const MAX_DROPDOWN_ITEMS = 50;
  * @param {String} str
  */
 const cleanString = (str) => str.toLocaleLowerCase().replace(/[^a-z0-9]/g, " ");
+
+// TODO Handle the special characters in a better way
+// .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+// https://stackoverflow.com/questions/990904/remove-accents-diacritics-in-a-string-in-javascript
 
 /**
  * Highlight a query string in an array of strings, ignoring special characters and case.
@@ -483,6 +489,7 @@ class Dropdown {
 /**
  * @typedef {Object} SongFieldEvents
  * @property {(song: string) => void} input
+ * @property {(song: string) => void} select
  */
 
 class SongField {
@@ -525,13 +532,19 @@ class SongField {
     );
     this.songInputContainer.append(this.songInput);
 
+    // Sent check
+    this.sentCheck = $(
+      `<div class="saAnswerStateContainerOuter"><div class="saAnswerStateContainerInner clickAble"><i class="saAnswerStateCheck fa fa-check"></i></div></div>`
+    ).appendTo(this.songInputContainer);
+    this.sentCheck.hide();
+
     // Dropdown
     const dropdown = new Dropdown(this.songInputContainer);
 
     dropdown.events.on("select", (selectedItem) => {
       this.songInput?.val(selectedItem);
       this.songInput?.trigger("focus");
-      this.events.emit("input", selectedItem);
+      this.events.emit("select", selectedItem);
     });
 
     this.songInput.on("input", (e) => {
@@ -540,6 +553,21 @@ class SongField {
       const results = this.songs.search(value);
       dropdown.load(highlightQuery(results, value));
       this.events.emit("input", value);
+
+      // if the sent-check is visible, apply the "fade" class to it
+      this.sentCheck?.addClass("fade");
+    });
+
+    this.songInput.on("keydown", (e) => {
+      if (e.key === "Enter") {
+        const el = /** @type {HTMLInputElement} */ (e.target);
+        this.sentCheck?.removeClass("fade");
+        this.sentCheck?.show();
+        this.songInput?.trigger("blur");
+
+        this.events.emit("select", el.value);
+        dropdown.load([]);
+      }
     });
 
     // this.songInput.on("input", (e) => {
@@ -573,6 +601,7 @@ class SongField {
 
   reset() {
     this.songInput?.val("");
+    this.sentCheck?.hide();
   }
 }
 
@@ -638,6 +667,9 @@ class ScoreBoard {
    * Manage the state of the S/A scoreboard.
    */
   constructor() {
+    // Remove the old scoreboard if present
+    $("#saScoreboard").remove();
+
     this.container = $('<div id="saScoreboard"></div>');
     this.container.appendTo($("#qpStandingContainer"));
     $("<div><h3>S/A Standings</h3></div>").appendTo(this.container);
@@ -812,7 +844,31 @@ class Players {
   getSelf() {
     return this.players.get(this.currentPlayerId);
   }
+
+  /**
+   * Get the current player id
+   */
+  getSelfId() {
+    return this.currentPlayerId;
+  }
 }
+
+/**
+ * Send answer via the AMQ Socket
+ *
+ * @param {String} answer
+ */
+const sendAnswerViaSocket = (answer) => {
+  socket.sendCommand({
+    type: "quiz",
+    command: "quiz answer",
+    data: {
+      answer,
+      isPlaying: true,
+      volumeAtMax: false,
+    },
+  });
+};
 
 class TeamSongArtist {
   constructor() {
@@ -846,9 +902,6 @@ class TeamSongArtist {
       const artists = await this.db.getStore(ARTIST_STORE);
 
       this.songField = new SongField(SA_FIELDS_ID, songs);
-      this.songField.events.on("input", (song) =>
-        this.answers.updateAnswer(0, song)
-      ); //TODO Fix the gameplayerid here
 
       /**
        * Expand local db by taking the data from the song info
@@ -898,6 +951,20 @@ class TeamSongArtist {
   }
 
   /**
+   * Handle a new answer by the current player
+   *
+   * @param {String} song
+   */
+  async handleAnswer(song) {
+    this.answers.updateAnswer(this.players.getSelfId(), song);
+    // "Flash" the answer in the field (Proof of Concept) //TODO
+    const currentAnswer = $("#qpAnswerInput").val() ?? "."; //TODO Fix this type
+    sendAnswerViaSocket(`sa<>${song}`);
+    await sleepMs(100);
+    sendAnswerViaSocket(currentAnswer);
+  }
+
+  /**
    * Reset the state
    */
   resetState() {
@@ -924,6 +991,7 @@ class TeamSongArtist {
     this.listeners["onQuizEnd"] = new Listener("quiz end result", () => {
       console.debug("[TeamSongArtist] QuizEnd");
       document.removeEventListener("keydown", handleCommands);
+      this.songField?.events.off("select", this.handleAnswer.bind(this));
     });
 
     this.listeners["onPlayNextSong"] = new Listener("play next song", () => {
@@ -943,6 +1011,8 @@ class TeamSongArtist {
           this.scoreboard?.addScore(gamePlayerId, name);
         });
         if (this.active) this.scoreboard.show();
+
+        this.songField?.events.on("select", this.handleAnswer.bind(this));
       }
     );
 
@@ -967,6 +1037,20 @@ class TeamSongArtist {
 
           if (correct) myScore += 1;
           this.scoreboard?.updateScore(0, myScore);
+        }
+      }
+    );
+
+    // Listen to team members' answers
+    this.listeners["onTeamMemberAnswer"] = new Listener(
+      "team member answer",
+      (/** @type {TeamMemberAnswer} */ data) => {
+        if (this.active) {
+          if (data.answer.startsWith("sa<>")) {
+            this.players
+              .getById(data.gamePlayerId)
+              ?.song.revealAnswer(data.answer.slice(4));
+          }
         }
       }
     );
@@ -1041,6 +1125,35 @@ class TeamSongArtist {
         margin-top: 5px;
         margin-bottom: 5px;
         position: relative;
+      }
+
+      .saAnswerStateContainerOuter {
+        position: absolute;
+        right: 0;
+        top: 0;
+        height: 100%;
+        width: 35px;
+        overflow: hidden;
+      }
+
+      .saAnswerStateContainerInner {
+        position: absolute;
+        width: 35px;
+        right: -15px;
+        background-color: #4497ea;
+        font-size: 12px;
+        height: 100%;
+        transform: skewX(-35.5deg);
+        -webkit-box-shadow: 1px -3px 10px rgba(0, 0, 0, 0.89);
+        box-shadow: 1px -3px 10px rgba(0, 0, 0, 0.89);
+      }
+
+      .saAnswerStateCheck {
+        transform: skewX(35.5deg) rotate(-10deg);
+        position: absolute;
+        left: 4px;
+        top: 18px;
+        font-size: 18px;
       }
     `);
   }
