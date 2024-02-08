@@ -175,8 +175,8 @@ class StoredArray {
    * @param {String} value
    */
   async append(value) {
-    await this.songArtistDB.appendValueToStore(value, this.store);
-    this.array.push(value);
+    const added = await this.songArtistDB.appendValueToStore(value, this.store);
+    if (added) this.array.push(value); // Avoid duplicates in the array
   }
 
   /**
@@ -247,16 +247,20 @@ class SongArtistDB {
    *
    * @param {String} value
    * @param {String} store The name of the store to append the value to
+   * @return {Promise<boolean>} True if the value was added, false if it already existed
    */
   async appendValueToStore(value, store) {
-    if (!this.db) return;
+    if (!this.db) return false;
 
     try {
       const tx = this.db.transaction(store, "readwrite");
       await Promise.all([tx.store.add({ name: value }), tx.done]);
+      return true;
     } catch (error) {
       console.debug(`${value} already exists in ${store}, nothing to do`);
     }
+
+    return false;
   }
 
   /**
@@ -345,6 +349,7 @@ class EventHandler {
 /**
  * @typedef {Object} Answer
  * @property {String} song
+ * @property {Boolean} isFromDB
  */
 class Answers {
   /**
@@ -363,15 +368,50 @@ class Answers {
    * @param {number} gamePlayerId
    * @param {string} answer
    */
-  updateAnswer(gamePlayerId, answer) {
-    this.answers[gamePlayerId] = { song: answer };
+  updateAnswer(gamePlayerId, answer, isFromDB = false) {
+    this.answers[gamePlayerId] = { song: answer, isFromDB };
   }
 
   /**
-   * Get the unified answer
+   * Get the answer for a player
+   *
+   * @param {number} gamePlayerId
    */
-  getAnswer() {
-    return this.answers[0]; //TODO Fix the id
+  getAnswer(gamePlayerId) {
+    return this.answers[gamePlayerId];
+  }
+
+  /**
+   * Check if the team's answer is correct, that is:
+   * - At least one team member has matched the correctSong
+   * - No other team member has a db answer that is different from correctSong
+   *
+   * @typedef {Object} CorrectnessResult
+   * @property {Boolean} correct
+   * @property {String} correctGuess
+   *
+   * @param {String} correctSong
+   * @returns {CorrectnessResult}
+   */
+  isTeamAnswerCorrect(correctSong) {
+    let correct = false; // Check if there is a correct answer
+    let wrong = false; // Check if there is a wrong answer (after removing non-db answers)
+    let correctGuess = undefined;
+
+    for (const key in this.answers) {
+      const { song, isFromDB } = this.answers[key];
+      if (cleanString(song) === cleanString(correctSong)) {
+        correct = true;
+        correctGuess = song;
+      } else if (isFromDB && song !== correctSong) {
+        wrong = true;
+      }
+    }
+
+    return {
+      correct: correct && !wrong,
+      correctGuess: correctGuess ?? "",
+    };
   }
 
   /**
@@ -379,7 +419,7 @@ class Answers {
    */
   reset() {
     for (const key in this.answers) {
-      this.answers[key] = { song: "" };
+      this.answers[key] = { song: "", isFromDB: false };
     }
   }
 }
@@ -877,6 +917,12 @@ class TeamSongArtist {
     this.players = new Players();
     this.answers = new Answers();
 
+    // DB stores
+    /** @type {StoredArray | undefined} */
+    this.songs = undefined;
+    /** @type {StoredArray | undefined} */
+    this.artists = undefined;
+
     /**
      * @type {Record<String, Listener>}
      */
@@ -898,10 +944,10 @@ class TeamSongArtist {
 
       await this.db.init();
 
-      const songs = await this.db.getStore(SONG_STORE);
-      const artists = await this.db.getStore(ARTIST_STORE);
+      this.songs = await this.db.getStore(SONG_STORE);
+      this.artists = await this.db.getStore(ARTIST_STORE);
 
-      this.songField = new SongField(SA_FIELDS_ID, songs);
+      this.songField = new SongField(SA_FIELDS_ID, this.songs);
 
       /**
        * Expand local db by taking the data from the song info
@@ -910,8 +956,8 @@ class TeamSongArtist {
       const onAnswerResults = new Listener(
         "answer results",
         async (/** @type {AnswerResults}*/ result) => {
-          await songs.append(result.songInfo.songName);
-          await artists.append(result.songInfo.artist);
+          await this.songs?.append(result.songInfo.songName);
+          await this.artists?.append(result.songInfo.artist);
         }
       );
       onAnswerResults.bindListener();
@@ -958,10 +1004,19 @@ class TeamSongArtist {
   async handleAnswer(song) {
     this.answers.updateAnswer(this.players.getSelfId(), song);
     // "Flash" the answer in the field (Proof of Concept) //TODO
-    const currentAnswer = $("#qpAnswerInput").val() ?? "."; //TODO Fix this type
-    sendAnswerViaSocket(`sa<>${song}`);
+    const currentAnswerValue = $("#qpAnswerInput").val() ?? ""; //TODO Fix this type
+    const currentAnswer = currentAnswerValue.toString();
+
+    let message = `sa<>${song}`;
+
+    // If the song is in the local db, change the prefix. In this way other players will add it to the db too
+    if ((this.songs?.search(song) ?? []).length > 0) {
+      message = `sa<<${song}`;
+    }
+
+    sendAnswerViaSocket(message);
     await sleepMs(100);
-    sendAnswerViaSocket(currentAnswer);
+    sendAnswerViaSocket(currentAnswer.length > 0 ? currentAnswer : "...");
   }
 
   /**
@@ -1018,9 +1073,11 @@ class TeamSongArtist {
 
     this.listeners["onPlayerAnswers"] = new Listener("player answers", () => {
       if (this.active) {
-        this.players
-          .getSelf()
-          ?.song.revealAnswer(this.answers.getAnswer().song);
+        // Show the answers of each player
+        for (const [id, player] of this.players.players) {
+          const answer = this.answers.getAnswer(id);
+          player.song.revealAnswer(answer?.song ?? "");
+        }
       }
     });
 
@@ -1028,12 +1085,16 @@ class TeamSongArtist {
       "answer results",
       (/** @type {AnswerResults} */ result) => {
         if (this.active) {
-          const currentGuess = cleanString(
-            this.answers.getAnswer()?.song ?? ""
+          const correct = this.answers.isTeamAnswerCorrect(
+            result.songInfo.songName
           );
-          const correctSong = cleanString(result.songInfo.songName);
-          const correct = currentGuess === correctSong;
-          this.players.getSelf()?.song.highlight(correct);
+          // Loop over the players
+          for (const player of this.players.players.values()) {
+            if (correct.correct) {
+              player.song.revealAnswer(correct.correctGuess); // Update all answers to the correct guess
+            }
+            player.song.highlight(correct.correct);
+          }
 
           if (correct) myScore += 1;
           this.scoreboard?.updateScore(0, myScore);
@@ -1046,10 +1107,17 @@ class TeamSongArtist {
       "team member answer",
       (/** @type {TeamMemberAnswer} */ data) => {
         if (this.active) {
-          if (data.answer.startsWith("sa<>")) {
-            this.players
-              .getById(data.gamePlayerId)
-              ?.song.revealAnswer(data.answer.slice(4));
+          if (
+            data.answer.startsWith("sa<>") ||
+            data.answer.startsWith("sa<<")
+          ) {
+            const song = data.answer.slice(4);
+            if (data.answer.startsWith("sa<<")) {
+              // Also add the song to the local db. In this way local dbs of team members will be kept in sync
+              this.songs?.append(song);
+            }
+            this.answers.updateAnswer(data.gamePlayerId, song);
+            this.players.getById(data.gamePlayerId)?.song.revealAnswer(song);
           }
         }
       }
