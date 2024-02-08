@@ -991,7 +991,7 @@ class TeamSongArtist {
    */
   handleCommands(e) {
     // ALT+G to toggle the script
-    if (e.altKey && e.key == "g") {
+    if (e.altKey && e.key == "l") {
       this.toggleScript();
     }
   }
@@ -1039,7 +1039,7 @@ class TeamSongArtist {
       this.songField?.init();
       this.resetState();
       gameChat.systemMessage("S/A Script loaded!");
-      gameChat.systemMessage("Press [Alt+G] to activate S/A mode");
+      gameChat.systemMessage("Press [Alt+L] to activate S/A mode");
       document.addEventListener("keydown", handleCommands);
     });
 
