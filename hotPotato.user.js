@@ -5,8 +5,8 @@
 // @description  Alt+click on an avatar to pass the potato to them.
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
-// @downloadURL
-// @updateURL
+// @downloadURL  https://github.com/Einlar/AMQScripts/raw/main/hotPotato.user.js
+// @updateURL    https://github.com/Einlar/AMQScripts/raw/main/hotPotato.user.js
 // @grant        none
 // ==/UserScript==
 
