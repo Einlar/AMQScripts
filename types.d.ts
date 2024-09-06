@@ -21,6 +21,8 @@ declare class Quiz {
   };
 
   players: Record<number, Player>;
+
+  setupQuiz: (...args: any[]) => void;
 }
 
 export type Player = {
