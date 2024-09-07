@@ -99,9 +99,10 @@ const getTeamDictionary = () => {
   const players = quiz.inQuiz ? quiz.players : lobby.players;
 
   return Object.values(players).reduce((acc, player) => {
-    if (player.teamNumber == null) return acc;
-    if (!acc[player.teamNumber]) acc[player.teamNumber] = [];
-    acc[player.teamNumber].push(player.name);
+    // Coalesce missing team numbers to 0
+    const teamNumber = player.teamNumber ?? 0;
+    if (!acc[teamNumber]) acc[teamNumber] = [];
+    acc[teamNumber].push(player.name);
     return acc;
   }, /** @type {Record<number, string[]>} */ ({}));
 };
@@ -122,12 +123,8 @@ const isValidAnime = (animeName) => {
  *
  * @returns {number | null}
  */
-const getMyTeam = () => {
-  if (!quiz.inQuiz && !lobby.inLobby) return null;
-  const players = quiz.inQuiz ? quiz.players : lobby.players;
-
-  return Object.values(players).find((p) => p.isSelf)?.teamNumber ?? null;
-};
+const getMyTeam = () =>
+  Object.values(quiz.players).find((p) => p.isSelf)?.teamNumber ?? null;
 
 /**
  * Feature list:
@@ -151,7 +148,7 @@ const showStatus = () => {
  * Setup listeners
  */
 const setupHotPotato = () => {
-  // Patch the quiz setup function to add a listener to the avatars
+  // Patch the quiz setup function to add a listener to the avatars. Works even after rejoining a quiz.
   const originalSetupQuiz = quiz.setupQuiz;
   quiz.setupQuiz = (...args) => {
     originalSetupQuiz.apply(quiz, args);
@@ -159,13 +156,12 @@ const setupHotPotato = () => {
     // Skip setup if in ranked
     if (isRanked()) return;
 
-    // BUGGED: Can only pass the potato in team games, and to teammates
-    // const myTeam = getMyTeam();
-    // console.log("My team is: ", myTeam);
-    // if (myTeam == null) return;
+    const myTeam = getMyTeam();
 
+    // Alt+click to pass the potato
     Object.values(quiz.players)
-      //.filter((p) => p.teamNumber === myTeam)
+      // Can only pass to teammates
+      .filter((p) => p.teamNumber === myTeam)
       .forEach((player) => {
         player.avatarSlot.$body.on("click", (event) => {
           if (event.altKey) {
@@ -190,7 +186,6 @@ const setupHotPotato = () => {
           sendChatMessage("Hot Potato rules: https://pastebin.com/qdr4g6Jp");
         } else if (/^\/potato roll$/i.test(m.message)) {
           /** --- Potato starting rolls --- */
-          //TODO: Should parse the rolls made by other players too, so that the script can be used by multiple players in the same lobby
           const teams = getTeamDictionary();
           if (Object.keys(teams).length === 0)
             return sendChatMessage("No teams found");
@@ -230,6 +225,21 @@ const setupHotPotato = () => {
           );
         }
       });
+
+    // Parse potato rolls made by other players
+    chat.messages
+      .filter((m) => m.sender !== selfName)
+      .forEach((m) => {
+        const match = m.message.match(/Team (\d+): (.+) has the 🥔/);
+        if (match) {
+          const team = parseInt(match[1]);
+          const player = match[2];
+          if (getMyTeam() === team) {
+            gameChat.systemMessage(`Auto-passing 🥔 to ${player}`);
+            nextPotatoHaver = player;
+          }
+        }
+      });
   }).bindListener();
 
   // Could auto switch potato if exactly one player gives a valid answer
@@ -237,8 +247,11 @@ const setupHotPotato = () => {
     if (!potatoTracking) return;
 
     if (nextPotatoHaver == null && isValidAnime(answer.answer)) {
-      nextPotatoHaver = quiz.players[answer.gamePlayerId].name;
-      gameChat.systemMessage(`Auto-passing 🥔 to ${nextPotatoHaver}`);
+      const toPlayer = quiz.players[answer.gamePlayerId].name;
+      gameChat.systemMessage(`Auto-passing 🥔 to ${toPlayer}`);
+      nextPotatoHaver = toPlayer;
+      // Avoid replacing your answer
+      if (toPlayer !== selfName) passPotato(toPlayer);
     }
   }).bindListener();
 
