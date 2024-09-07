@@ -16,19 +16,46 @@ declare class Quiz {
    */
   answerInput: QuizAnswerInput;
 
+  gameMode: Gamemode;
+
   skipController: {
     voteSkip: () => void;
   };
 
+  /**
+   * Dictionary of player number to player object
+   */
   players: Record<number, Player>;
 
   setupQuiz: (...args: any[]) => void;
+}
+
+declare class QuizAnswerInput {
+  submitAnswer: (showState: boolean) => void;
+  typingInput: {
+    autoCompleteController: {
+      list: string[];
+      awesomepleteInstance: {
+        selected: boolean;
+        isOpened: boolean;
+        $ul: JQuery<HTMLUListElement>;
+      };
+    };
+  };
+  activeInputController: {
+    autoCompleteController: {
+      awesomepleteInstance: {
+        close: () => void;
+      };
+    };
+  };
 }
 
 export type Player = {
   name: string;
   gamePlayerId: number;
   isSelf: boolean;
+  teamNumber: null | number;
   avatarSlot: {
     _answer: string | null;
     $body: JQuery<HTMLDivElement>;
@@ -40,10 +67,71 @@ declare class Lobby {
    * Whether the user is currently in the lobby
    */
   inLobby: boolean;
+
+  settings: {
+    gamemode: Gamemode;
+  };
+
+  players: Record<number, Player>;
 }
 
+export type Gamemode = "Ranked" | "Multiplayer" | "Solo";
+
+export type GameChatUpdatePayload = {
+  messages: MessagePayload[];
+};
+
+export type MessagePayload = {
+  sender: string;
+  modMessage: boolean;
+  message: string;
+  teamMessage: boolean;
+  messageId: number;
+  // emojis, badges, etc.
+};
+
+export type GameStartingPayload = {
+  showSelection: number;
+  players: any[];
+  groupSlotMap: Record<string, number[]>;
+  multipleChoiceEnabled: boolean;
+  quizIdentifier: any;
+  gameMode: Gamemode;
+};
+
+export type QuizOverPayload = {
+  gameId: number;
+  settings: any;
+  hostName: string;
+  playersInQueue: string[];
+  players: any[];
+  inLobby: boolean;
+  mapOfFullTeams: Record<number, boolean>;
+  spectators: any[];
+  numberOfTeams: number;
+};
+
+export type TeamMemberAnswerPayload = {
+  answer: string;
+  gamePlayerId: number;
+};
+
 export class ListenerClass {
-  constructor(command: string, callback: (data: any) => void);
+  constructor(
+    command: "game chat update",
+    callback: (data: GameChatUpdatePayload) => void
+  );
+  constructor(command: "play next song", callback: (data: any) => void);
+  constructor(
+    command: "Game Starting",
+    callback: (data: GameStartingPayload) => void
+  );
+  constructor(command: "quiz over", callback: (data: QuizOverPayload) => void);
+  constructor(command: "guess phase over", callback: () => void);
+  constructor(
+    command: "team member answer",
+    callback: (data: TeamMemberAnswerPayload) => void
+  );
   fire: (payload: any) => void;
   bindListener: () => void;
   unbindListener: () => void;
@@ -54,8 +142,18 @@ export type AMQSocket = {
 };
 
 declare global {
+  var gameChat: GameChat;
   var quiz: Quiz;
   var lobby: Lobby;
   var Listener: typeof ListenerClass;
   var socket: AMQSocket;
+
+  /**
+   * The name of the user
+   */
+  var selfName: string;
+}
+
+declare class GameChat {
+  systemMessage: (message: string) => void;
 }
