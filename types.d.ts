@@ -116,6 +116,36 @@ export type TeamMemberAnswerPayload = {
   gamePlayerId: number;
 };
 
+export type AnswerResultsPayload = {
+  songInfo: SongInfo;
+};
+
+export type SongInfo = {
+  songName: string;
+  artist: string;
+  animeNames: AnimeNames;
+  videoTargetMap: VideoMap;
+  altAnimeNames: string[];
+  type: number;
+  annId: number;
+  highRisk: number;
+  animeScore: number;
+  animeType: string;
+  vintage: string;
+  animeDifficulty: number;
+  animeTags: string[];
+  animeGenre: string[];
+  altAnimeNames: string[];
+  altAnimeNamesAnswers: string[];
+  siteIds: {
+    annId: number;
+    malId: number;
+    kitsuId: number;
+    aniListId: number;
+  };
+  artistHoverInformation: Artist | Group;
+};
+
 export class ListenerClass {
   constructor(
     command: "game chat update",
@@ -131,6 +161,10 @@ export class ListenerClass {
   constructor(
     command: "team member answer",
     callback: (data: TeamMemberAnswerPayload) => void
+  );
+  constructor(
+    command: "answer results",
+    callback: (data: AnswerResultsPayload) => void
   );
   fire: (payload: any) => void;
   bindListener: () => void;
@@ -152,6 +186,11 @@ declare global {
    * The name of the user
    */
   var selfName: string;
+
+  /**
+   * Transform a search string into a regex for the dropdown list
+   */
+  var createAnimeSearchRegexQuery: (search: string) => RegExp;
 }
 
 declare class GameChat {
