@@ -8,6 +8,7 @@
 // @downloadURL  https://github.com/Einlar/AMQScripts/raw/main/amqVivaceShortcuts.user.js
 // @updateURL    https://github.com/Einlar/AMQScripts/raw/main/amqVivaceShortcuts.user.js
 // @grant        none
+// @icon         https://i.imgur.com/o8hOqsv.png
 // ==/UserScript==
 
 var infoDiv;
