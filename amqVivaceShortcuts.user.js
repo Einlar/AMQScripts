@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         AMQ Vivace! Shortcuts
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  Displays the top 3 shortest shortcut for an anime after guessing phase, defined as the shortest substring of length 10 or less for which the target anime (or any of its alt names) is the first suggestion in the dropdown list (or one of the top ones, in case it is not possible to do better). Adapted from https://github.com/tutti-amq/amq-scripts/blob/main/animeShortcuts.user.js
+// @version      1.1
+// @description  Displays at least 3 of the shortest shortcuts for an anime after guessing phase, defined as the shortest substrings of length 10 or less for which the target anime (or any of its alt names) is the first suggestion in the dropdown list (or one of the top ones, in case it is not possible to do better). Adapted from https://github.com/tutti-amq/amq-scripts/blob/main/animeShortcuts.user.js All shortcuts with the smallest length are displayed.
 // @author       Einlar, Tutti
 // @match        https://animemusicquiz.com/*
 // @downloadURL  https://github.com/Einlar/AMQScripts/raw/main/amqVivaceShortcuts.user.js
@@ -90,9 +90,16 @@ const optimizedShortcuts = (targets) => {
   let minPos = Infinity;
   let bestSubstring = "";
   let shortcuts = [];
+  let currentLength = 0;
 
   for (const substring of sortedSubstrings) {
+    const newLength = substring.length;
+
+    // Search for longer substrings only if there are not enough shortcuts yet, but display *all* the shortest ones
+    if (newLength > currentLength && shortcuts.length >= NUM_SHORTCUTS) break;
+
     const suggestions = getSuggestions(substring);
+    currentLength = newLength;
 
     const positions = targets
       .map((target) => suggestions.indexOf(target))
@@ -108,9 +115,6 @@ const optimizedShortcuts = (targets) => {
       // If a perfect shortcut is found, append it to the results
       if (pos === 0) {
         shortcuts.push(substring);
-        if (shortcuts.length >= NUM_SHORTCUTS) {
-          break;
-        }
       }
     }
   }
@@ -137,6 +141,11 @@ const onSongPlayed = (data) => {
   )}<br><br>`;
 };
 
+/**
+ * Format the shortcuts to be displayed inside <code> blocks.
+ *
+ * @param {string[]} shortcuts
+ */
 const formatShortcuts = (shortcuts) => {
   let uniqueShortcuts = shortcuts.filter(onlyUnique);
   let formattedString = "";
@@ -156,7 +165,10 @@ function onlyUnique(value, index, self) {
 
 const setupShortcuts = () => {
   const boxDiv = document.querySelector("div.qpSideContainer > div.row");
+
   infoDiv = document.createElement("div");
+  infoDiv.style.overflow = "auto";
+  infoDiv.style.maxHeight = "100px";
 
   infoDiv.className = "rowAnimeShortcuts";
   infoDiv.style.cssText += "line-height: 1.7";
