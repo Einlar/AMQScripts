@@ -2,6 +2,8 @@
 
 A growing collection of user scripts to enhance your experience on [Anime Music Quiz](https://animemusicquiz.com/).
 
+May contain references to Hibike! Euphonium 🎺.
+
 ## How to install
 
 1. Install a browser extension such as [Violentmonkey](https://violentmonkey.github.io/).
