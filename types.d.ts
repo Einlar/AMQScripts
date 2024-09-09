@@ -34,6 +34,7 @@ declare class QuizAnswerInput {
   submitAnswer: (showState: boolean) => void;
   typingInput: {
     autoCompleteController: {
+      updateList: () => void;
       list: string[];
       awesomepleteInstance: {
         selected: boolean;
@@ -120,6 +121,11 @@ export type AnswerResultsPayload = {
   songInfo: SongInfo;
 };
 
+export type SpectateGamePayload = {
+  hostName: string;
+  inLobby: boolean;
+};
+
 export type SongInfo = {
   songName: string;
   artist: string;
@@ -165,6 +171,10 @@ export class ListenerClass {
   constructor(
     command: "answer results",
     callback: (data: AnswerResultsPayload) => void
+  );
+  constructor(
+    command: "Spectate Game",
+    callback: (data: SpectateGamePayload) => void
   );
   fire: (payload: any) => void;
   bindListener: () => void;

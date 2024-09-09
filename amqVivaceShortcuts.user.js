@@ -164,6 +164,15 @@ function onlyUnique(value, index, self) {
   return self.indexOf(value) === index;
 }
 
+/**
+ * Preload dropdown when spectating, so that the shortcuts are available immediately
+ */
+const preloadDropdown = () => {
+  if (quiz.answerInput.typingInput.autoCompleteController.list.length === 0) {
+    quiz.answerInput.typingInput.autoCompleteController.updateList();
+  }
+};
+
 const setupShortcuts = () => {
   const boxDiv = document.querySelector("div.qpSideContainer > div.row");
 
@@ -178,6 +187,10 @@ const setupShortcuts = () => {
   parentDiv?.insertBefore(infoDiv, parentDiv?.children[4]);
 
   new Listener("answer results", onSongPlayed).bindListener();
+  new Listener("Spectate Game", (game) => {
+    if (!game.inLobby) preloadDropdown();
+  }).bindListener();
+  new Listener("Game Starting", preloadDropdown).bindListener();
 };
 
 if (window.quiz) {
