@@ -25,3 +25,11 @@ A collection of utilities for the [hot potato custom gamemode](https://pastebin.
 - `/potato rules`: link the pastebin with the rules
 - `/potato roll`: randomly assign a player of each team to have the potato before starting a game
 - `/potato track` (experimental): enable/disable auto-tracking of the potato (experimental). If enabled, at the start of each round, the script will autothrow a message showing who currently has the potato. You will need to manually tell the script who has the potato using ALT+click. If exactly one player gives a valid answer, and you have not manually passed the potato, the script will automatically do it for you.
+
+### Enter Dropdown - [Install](https://github.com/Einlar/AMQScripts/raw/main/amqEnterDropD.user.js)
+
+A faster way to pick an item from the dropdown, useful for playing in impossible rooms like 2+0.
+
+- Pressing Enter in the answer input will automatically send the value of the first suggestion in the dropdown list, or the highlighted item if any.
+- If you don't press Enter before the guessing phase ends, this will happen automatically (except if a teammate already submitted a valid answer).
+- Activate/deactivate with `ALT + Q` (starts deactivated).
