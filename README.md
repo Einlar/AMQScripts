@@ -33,3 +33,12 @@ A faster way to pick an item from the dropdown, useful for playing in impossible
 - Pressing Enter in the answer input will automatically send the value of the first suggestion in the dropdown list, or the highlighted item if any.
 - If you don't press Enter before the guessing phase ends, this will happen automatically (except if a teammate already submitted a valid answer).
 - Activate/deactivate with `ALT + Q` (starts deactivated).
+
+## Developer Instructions
+
+- Just run `npm install` to install some dev dependencies (types & [eslint](https://eslint.org/)).
+- I use [JSDoc](https://jsdoc.app/) to add type checking to all the scripts while avoiding the hassle of setting up Typescript and compiling every time (and developing in JS with no types is doomed). It should work immediately in any modern editor (I personally use [VSC](https://code.visualstudio.com/) on [WSL](https://learn.microsoft.com/en-us/windows/wsl/install)). With types you get nice intellisense suggestions like these:
+
+  ![An example of intellisense in VSC](./images/intellisense_example.png)
+
+  Types are by no means complete - I merely add only the stuff I use. But, I plan to expand them, _eventually_.
