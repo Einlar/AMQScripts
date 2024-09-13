@@ -21,7 +21,7 @@
  *
  * v1.1
  * - Fixed a bug in potato tracking, where if a player with auto-send enabled started writing something starting with "k" or "f" they would immediately receive the potato (because their answer for a brief moment was a valid anime name, and thus they were considered by the script the first to answer). Auto-passing now waits for a valid guess to persist for at least 0.5s before auto-passing.
- * - Potato tracking will detect passes made by other players using the script, and update
+ * - Potato tracking will now detect passes made by other players using the script
  */
 
 /**
