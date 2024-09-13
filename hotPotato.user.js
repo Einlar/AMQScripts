@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hot Potato Gamemode
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Utilities for the hot potato gamemode. Alt+click on an avatar to pass the potato to them.
 //               Commands:
 //               - /potato rules: Send a pastebin link with the rules
@@ -15,6 +15,14 @@
 // @updateURL    https://github.com/Einlar/AMQScripts/raw/main/hotPotato.user.js
 // @grant        none
 // ==/UserScript==
+
+/**
+ * CHANGELOG
+ *
+ * v1.1
+ * - Fixed a bug in potato tracking, where if a player with auto-send enabled started writing something starting with "k" or "f" they would immediately receive the potato (because their answer for a brief moment was a valid anime name, and thus they were considered by the script the first to answer). Auto-passing now waits for a valid guess to persist for at least 0.5s before auto-passing.
+ * - Potato tracking will detect passes made by other players using the script, and update
+ */
 
 /**
  * Enable/disable potato tracking
@@ -36,18 +44,24 @@ let potatoHaver = null;
 let nextPotatoHaver = null;
 
 /**
+ * Timeout for auto-passing the potato
+ *
+ * @type {number | null}
+ */
+let autoPassTimeout = null;
+
+/**
  * Click on an avatar to pass the potato to that player
  *
  * @param {string} playerName
  */
 const passPotato = (playerName) => {
-  sendAnswer(`🥔 to ${playerName}`);
+  sendAnswer(`🥔 to ${playerName}`, true);
   nextPotatoHaver = playerName;
 };
 
 /**
  * Show who currently has the potato
- *
  */
 const hasPotato = () => {
   if (potatoHaver) sendAnswer(`(${potatoHaver} has 🥔)`);
@@ -58,11 +72,25 @@ const hasPotato = () => {
  * Send a message as answer
  *
  * @param {string} message
+ * @param {boolean} [fillInput = false] If true, fill the answer input with the message
  */
-const sendAnswer = (message) => {
-  $("#qpAnswerInput").val(message);
-  quiz.answerInput.submitAnswer(true);
+const sendAnswer = (message, fillInput = false) => {
+  socket.sendCommand({
+    type: "quiz",
+    command: "quiz answer",
+    data: { answer: message },
+  });
+  if (fillInput) {
+    $("#qpAnswerInput").val(message);
+    quiz.answerInput.submitAnswer(true);
+  }
 };
+
+/**
+ * Retrieve the current player's answer
+ */
+const getCurrentAnswer = () =>
+  Object.values(quiz.players).find((p) => p.isSelf)?.answer;
 
 /**
  * Check if the player is playing Ranked
@@ -125,15 +153,6 @@ const isValidAnime = (animeName) => {
  */
 const getMyTeam = () =>
   Object.values(quiz.players).find((p) => p.isSelf)?.teamNumber ?? null;
-
-/**
- * Feature list:
- * - [x] Alt+click to pass potato
- * - [x] Command to send pastebin with rules (https://pastebin.com/qdr4g6Jp)
- * - [x] Potato manual tracking
- * - [x] Command to roll teams (and set potato for script havers)
- * - [x] Potato auto-tracking (partial)
- */
 
 /**
  * Display the script status as a system message
@@ -242,16 +261,52 @@ const setupHotPotato = () => {
       });
   }).bindListener();
 
-  // Could auto switch potato if exactly one player gives a valid answer
+  // Auto-pass the potato to the first player who inputs a valid anime name (if the potato has not been passed yet)
   new Listener("team member answer", (answer) => {
     if (!potatoTracking) return;
 
-    if (nextPotatoHaver == null && isValidAnime(answer.answer)) {
-      const toPlayer = quiz.players[answer.gamePlayerId].name;
-      gameChat.systemMessage(`Auto-passing 🥔 to ${toPlayer}`);
-      nextPotatoHaver = toPlayer;
-      // Avoid replacing your answer
-      if (toPlayer !== selfName) passPotato(toPlayer);
+    if (nextPotatoHaver == null) {
+      if (isValidAnime(answer.answer)) {
+        autoPassTimeout = setTimeout(() => {
+          // Skip the auto-pass if the potato has been passed manually in the meantime
+          if (nextPotatoHaver) return;
+
+          const toPlayer = quiz.players[answer.gamePlayerId].name;
+          gameChat.systemMessage(`Auto-passing 🥔 to ${toPlayer}`);
+          nextPotatoHaver = toPlayer;
+          // Avoid replacing your answer
+          if (toPlayer !== selfName) passPotato(toPlayer);
+        }, 500);
+      } else if (autoPassTimeout) {
+        // Skip auto-passing if the anime is changed to something else
+        clearTimeout(autoPassTimeout);
+      }
+    }
+
+    // Match the potato message in the answer "🥔 to ${playerName}", and in that case update the potato haver
+    const selfId = Object.values(quiz.players).find(
+      (p) => p.isSelf
+    )?.gamePlayerId; // Is this even necessary?
+    const match = answer.answer.match(/🥔 to (.+)$/);
+    if (match && answer.gamePlayerId !== selfId) {
+      const toPlayer = match[1];
+
+      // Check if there is a team member with that name
+      const myTeam = getMyTeam();
+      const player = Object.values(quiz.players).find(
+        (p) => p.name === toPlayer && p.teamNumber === myTeam
+      );
+
+      if (player) {
+        gameChat.systemMessage(`Auto-passing 🥔 to ${toPlayer}`);
+        potatoHaver = toPlayer;
+        nextPotatoHaver = toPlayer;
+
+        // Update the potato message (but only if you are not answering)
+        if (getCurrentAnswer()?.includes("🥔")) {
+          hasPotato();
+        }
+      }
     }
   }).bindListener();
 

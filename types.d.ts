@@ -54,6 +54,7 @@ declare class QuizAnswerInput {
 
 export type Player = {
   name: string;
+  answer: string;
   gamePlayerId: number;
   isSelf: boolean;
   teamNumber: null | number;
@@ -184,6 +185,21 @@ export class ListenerClass {
 export type AMQSocket = {
   sendCommand: (params: { type: string; command: string; data: any }) => void;
 };
+
+/**
+ *  sendCommand: (params: {
+    type: "lobby";
+    command: "game chat message";
+    data: { msg: string; teamMessage: boolean };
+  }) => void;
+
+  
+  sendCommand: (params: {
+    type: "quiz";
+    command: "quiz answer";
+    data: { answer: string };
+  }) => void;
+ */
 
 declare global {
   var gameChat: GameChat;
