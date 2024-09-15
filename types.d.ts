@@ -150,7 +150,7 @@ export type SongInfo = {
     kitsuId: number;
     aniListId: number;
   };
-  artistHoverInformation: Artist | Group;
+  artistInfo: Artist | Group;
 };
 
 export class ListenerClass {
@@ -217,6 +217,12 @@ declare global {
    * Transform a search string into a regex for the dropdown list
    */
   var createAnimeSearchRegexQuery: (search: string) => RegExp;
+
+  /**
+   * Replace special characters in an anime name with their normal counterparts that can be used in the dropdown search
+   * (yeah it is "Seach" in the original code :D)
+   */
+  var replaceCharactersForSeachCharacters: (inputString: string) => string;
 }
 
 declare class GameChat {
