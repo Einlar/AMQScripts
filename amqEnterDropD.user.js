@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Enter DropD
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  Pressing Enter in the answer input will automatically send the value of the first suggestion in the dropdown list, or the highlighted item if any. If you don't press Enter before the guessing phase ends, this will happen automatically (except if a teammate already submitted a valid answer). Activate/deactivate with [ALT+Q].
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -9,6 +9,13 @@
 // @updateURL    https://github.com/Einlar/AMQScripts/raw/main/amqEnterDropD.user.js
 // @grant        none
 // ==/UserScript==
+
+/**
+ * CHANGELOG
+ *
+ * v1.5
+ * - The answer is automatically sent also when it is selected from the dropdown list.
+ */
 
 /**
  * Is the script active?
@@ -74,6 +81,16 @@ const setupDropD = () => {
         // Close the dropdown
         quiz.answerInput.activeInputController.autoCompleteController.awesomepleteInstance.close();
       }
+    }
+  });
+
+  // Auto-send the answer if selected from the dropdown
+  const $input = quiz.answerInput.typingInput.$input;
+  $input.on("awesomplete-selectcomplete", () => {
+    if (!active) return;
+    const val = $input.val();
+    if (typeof val === "string" && val.trim() != "") {
+      quiz.answerInput.submitAnswer(true);
     }
   });
 
