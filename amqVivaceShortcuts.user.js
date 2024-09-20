@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         AMQ Vivace! Shortcuts
 // @namespace    http://tampermonkey.net/
-// @version      1.3
-// @description  Displays at least 3 of the shortest shortcuts for an anime after guessing phase, defined as the shortest substrings of length 10 or less for which the target anime (or any of its alt names) is the first suggestion in the dropdown list (or one of the top ones, in case it is not possible to do better). Adapted from https://github.com/tutti-amq/amq-scripts/blob/main/animeShortcuts.user.js All shortcuts with the smallest length are displayed.
+// @version      1.4
+// @description  Displays at least 3 of the shortest shortcuts for an anime after guessing phase, defined as the shortest substrings of length 10 or less for which the target anime (or any of its alt names) is the first suggestion in the dropdown list (or one of the top ones, in case it is not possible to do better). Adapted from https://github.com/tutti-amq/amq-scripts/blob/main/animeShortcuts.user.js All shortcuts with the smallest length are displayed. Click on a shortcut to highlight it and move it to the front of the list.
 // @author       Einlar, Tutti
 // @match        https://animemusicquiz.com/*
 // @downloadURL  https://github.com/Einlar/AMQScripts/raw/main/amqVivaceShortcuts.user.js
 // @updateURL    https://github.com/Einlar/AMQScripts/raw/main/amqVivaceShortcuts.user.js
+// @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
 // @grant        none
 // @icon         https://i.imgur.com/o8hOqsv.png
 // ==/UserScript==
@@ -14,12 +15,16 @@
 /**
  * CHANGELOG
  *
+ * v1.4
+ * - Click on a shortcut to highlight it and move it to the front of the list. The highlighed shortcuts are stored in local storage.
+ *
  * v1.3
  * - Shortcuts are now even more optimized! They will exploit the replacement rules used by AMQ.
  *   For instance, an optimal shortcut for "Kaguya-sama wa Kokurasetai?: Tensai-tachi no Renai Zunousen" is "? t", because a single space can be used to match any number of consecutive special characters.
  * - A few special characters are now allowed in the shortcuts (currently any of /*=+:;-?,.!@_#). Also all the characters that AMQ does not match with a space are allowed (e.g. "°", so you can use it as a shortcut for "Gintama°")
  */
 
+/** @type {JQuery<HTMLElement>} */
 var infoDiv;
 
 /**
@@ -123,6 +128,20 @@ const ALLOWED_SPECIAL_CHARACTERS = [
   "_",
   "#",
 ];
+
+/**
+ * Shortcuts to be shown
+ *
+ * @type {string[]}
+ */
+let shortcuts = [];
+
+/**
+ * Key for storing the highlighted shortcuts in local storage.
+ *
+ * @type {string}
+ */
+const LOCAL_STORAGE_KEY = "vivaceHighlightedShortcuts";
 
 /**
  * Simulate a search in the dropdown, returning the list of suggestions.
@@ -289,6 +308,22 @@ const optimizedShortcuts = (targets) => {
 };
 
 /**
+ * Render the shortcuts in the infoDiv.
+ */
+const renderShortcuts = () => {
+  $(infoDiv).html(
+    `<h5><b>Anime shortcuts: </b></h5>${formatShortcuts(shortcuts)}<br><br>`
+  );
+
+  // Add event listener to the shortcuts
+  $(infoDiv)
+    .off("click", ".vivaceShortcut")
+    .on("click", ".vivaceShortcut", function () {
+      toggleHighlight($(this).data("shortcut"));
+    });
+};
+
+/**
  * Compute the shortcuts when a song is played.
  *
  * @param {import('./types').AnswerResultsPayload} data
@@ -300,26 +335,56 @@ const onSongPlayed = (data) => {
     ...data.songInfo.altAnimeNames,
   ].flatMap((a) => a);
 
-  const shortcuts = optimizedShortcuts(targets);
-
-  infoDiv.innerHTML = `<h5><b>Anime shortcuts: </b></h5>${formatShortcuts(
-    shortcuts
-  )}<br><br>`;
+  shortcuts = optimizedShortcuts(targets);
+  renderShortcuts();
 };
 
 /**
- * Format the shortcuts to be displayed inside <code> blocks.
+ * Toggle the highlight of a shortcut and store the state in local storage.
+ *
+ * @param {string | number} shortcut
+ */
+const toggleHighlight = (shortcut) => {
+  const str = String(shortcut);
+
+  /** @type {string[]} */
+  let highlightedShortcuts = JSON.parse(
+    localStorage.getItem(LOCAL_STORAGE_KEY) || "[]"
+  );
+  if (highlightedShortcuts.includes(str)) {
+    highlightedShortcuts = highlightedShortcuts.filter((s) => s !== str);
+  } else {
+    highlightedShortcuts.push(str);
+  }
+  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(highlightedShortcuts));
+  renderShortcuts();
+};
+
+/**
+ * Convert a list of shortcuts into a formatted HTML string.
  *
  * @param {string[]} shortcuts
  */
 const formatShortcuts = (shortcuts) => {
   let uniqueShortcuts = shortcuts.filter(onlyUnique);
+  let highlightedShortcuts = JSON.parse(
+    localStorage.getItem(LOCAL_STORAGE_KEY) || "[]"
+  ).map(String);
   let formattedString = "";
+
+  // Reorder the shortcuts so that the highlighted ones are first. Keep the order of the rest.
+  uniqueShortcuts = uniqueShortcuts.sort(
+    (a, b) =>
+      highlightedShortcuts.includes(b) - highlightedShortcuts.includes(a)
+  );
   uniqueShortcuts.forEach((shortcut) => {
+    let isHighlighted = highlightedShortcuts.includes(shortcut);
     let formattedShortcut = shortcut.includes(" ")
       ? shortcut.replaceAll(" ", "&nbsp")
       : shortcut;
-    formattedString += `<code style = "color:white;background-color:#2e2c2c;border-width:0.5px;border-style:solid;border-color:white">${formattedShortcut}</code> `;
+    formattedString += /*html*/ `<code class="vivaceShortcut${
+      isHighlighted ? " vivaceHighlighted" : ""
+    }" data-shortcut="${shortcut}">${formattedShortcut}</code> `;
   });
 
   return formattedString;
@@ -350,15 +415,19 @@ const preloadDropdown = () => {
 const setupShortcuts = () => {
   const boxDiv = document.querySelector("div.qpSideContainer > div.row");
 
-  infoDiv = document.createElement("div");
-  infoDiv.style.overflow = "auto";
-  infoDiv.style.maxHeight = "100px";
-
-  infoDiv.className = "rowAnimeShortcuts";
-  infoDiv.style.cssText += "line-height: 1.7";
+  infoDiv = $("<div/>", {
+    class: "rowAnimeShortcuts",
+    css: {
+      overflow: "auto",
+      maxHeight: "100px",
+      lineHeight: "1.7",
+    },
+  });
 
   const parentDiv = boxDiv?.parentElement;
-  parentDiv?.insertBefore(infoDiv, parentDiv?.children[4]);
+  if (!parentDiv) return;
+
+  $(parentDiv).children().eq(4).before(infoDiv);
 
   new Listener("answer results", onSongPlayed).bindListener();
   new Listener("Spectate Game", (game) => {
@@ -367,6 +436,46 @@ const setupShortcuts = () => {
   new Listener("Game Starting", preloadDropdown).bindListener();
 };
 
+/**
+ * Add metadata to the "Installed Userscripts" list & populate CSS
+ */
+const setupMetadata = () => {
+  // @ts-ignore
+  // eslint-disable-next-line no-undef
+  AMQ_addScriptData({
+    name: "AMQ Vivace! Shortcuts",
+    author: "Einlar",
+    version: "1.4",
+    link: "https://github.com/Einlar/AMQScripts",
+    description: `
+      <p>Displays 3 or more shortest dropdown shortcuts during the results phase.</p>
+      <p>The shortcuts displayed are the shortest substrings of length 10 or less for which the target anime (or any of its alt names) is the first suggestion in the dropdown list (or one of the top ones, in case it is not possible to do better).</p>
+      <p>Shortcuts account for romaji/english names, and exploit the AMQ replacement rules for the dropdown (for instance, an optimal shortcut for "Kaguya-sama wa Kokurasetai?: Tensai-tachi no Renai Zunousen" is "? t", because a single space can be used to match any number of consecutive special characters).</p>
+      <p>A few special characters are now allowed in the shortcuts (currently any of /*=+:;-?,.!@_#). Also all the characters that AMQ does not match with a space are allowed (e.g. "°", so you can use it as a shortcut for "Gintama°")</p>
+      <p>Click on a shortcut to highlight it and move it to the front of the list. The highlighed shortcuts are stored.</p>
+      `,
+  });
+
+  // @ts-ignore
+  // eslint-disable-next-line no-undef
+  AMQ_addStyle(/*css*/ `
+    .vivaceShortcut {
+      cursor: pointer;
+      color: white;
+      background-color: #2e2c2c;
+      border-width: 0.5px;
+      border-style: solid;
+      border-color: white;
+    }
+
+    .vivaceHighlighted {
+      background-color: #ffeb3b;
+      color: black;
+    }
+  `);
+};
+
 if (window.quiz) {
   setupShortcuts();
+  setupMetadata();
 }
