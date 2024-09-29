@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         AMQ Enter DropD
 // @namespace    http://tampermonkey.net/
-// @version      1.6
-// @description  Pressing Enter in the answer input will automatically send the value of the first suggestion in the dropdown list, or the highlighted item if any. If you don't press Enter before the guessing phase ends, this will happen automatically (except if a teammate already submitted a valid answer). Activate/deactivate with [ALT+Q].
+// @version      1.7
+// @description  Pressing Enter in the answer input will automatically send the value of the first suggestion in the dropdown list, or the highlighted item if any. If you don't press Enter before the guessing phase ends, this will happen automatically (except if you or any teammate already submitted a valid answer). Activate/deactivate with [ALT+Q].
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
 // @match        https://*.animemusicquiz.com/*
@@ -13,6 +13,10 @@
 
 /**
  * CHANGELOG
+ *
+ * v1.7
+ * - If the player already submitted a valid answer, avoid replacing it with the first item from the dropdown (or the highlighted one).
+ * - When guessing phase ends, if the current answer is valid but has not been submitted yet, submit it.
  *
  * v1.6
  * - Make the script work also on AMQ subdomains (since at the moment the main AMQ domain is not working).
@@ -58,6 +62,14 @@ const isValidAnime = (animeName) => {
   );
 };
 
+/**
+ * Retrieve the last submitted answer.
+ *
+ * @returns {string | null}
+ */
+const getLastSubmittedAnswer = () =>
+  quiz.answerInput.typingInput.quizAnswerState.currentAnswer;
+
 const setupDropD = () => {
   $("#qpAnswerInput").on("keydown", function (event) {
     if (!active) return;
@@ -101,9 +113,18 @@ const setupDropD = () => {
   const autoSend = new Listener("guess phase over", () => {
     if (!active) return;
 
-    // If the current answer is not valid, and if the dropdown has items, send the first suggestion
     const currentAnswer = $("#qpAnswerInput").val();
 
+    // If the current answer is valid, submit it
+    if (typeof currentAnswer === "string" && isValidAnime(currentAnswer)) {
+      quiz.answerInput.submitAnswer(true);
+      return;
+    }
+
+    // If the current answer is not valid, but you have already submitted a valid answer, do nothing (to avoid replacing it)
+    if (isValidAnime(getLastSubmittedAnswer() ?? "")) return;
+
+    // If the current answer is not valid, and if the dropdown has items, send the first suggestion
     if (
       typeof currentAnswer === "string" &&
       currentAnswer.trim() !== "" &&
