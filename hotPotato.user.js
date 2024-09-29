@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hot Potato Gamemode
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Utilities for the hot potato gamemode. Alt+click on an avatar to pass the potato to them.
 //               Commands:
 //               - /potato rules: Send a pastebin link with the rules
@@ -11,6 +11,7 @@
 //                                the script will automatically do it for you.
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
+// @match        https://*.animemusicquiz.com/*
 // @downloadURL  https://github.com/Einlar/AMQScripts/raw/main/hotPotato.user.js
 // @updateURL    https://github.com/Einlar/AMQScripts/raw/main/hotPotato.user.js
 // @grant        none
@@ -18,6 +19,9 @@
 
 /**
  * CHANGELOG
+ *
+ * v1.2
+ * - Make the script work also on AMQ subdomains (since at the moment the main AMQ domain is not working).
  *
  * v1.1
  * - Fixed a bug in potato tracking, where if a player with auto-send enabled started writing something starting with "k" or "f" they would immediately receive the potato (because their answer for a brief moment was a valid anime name, and thus they were considered by the script the first to answer). Auto-passing now waits for a valid guess to persist for at least 0.5s before auto-passing.

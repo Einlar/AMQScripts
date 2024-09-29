@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         AMQ Vivace! Shortcuts
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  Displays at least 3 of the shortest shortcuts for an anime after guessing phase, defined as the shortest substrings of length 10 or less for which the target anime (or any of its alt names) is the first suggestion in the dropdown list (or one of the top ones, in case it is not possible to do better). Adapted from https://github.com/tutti-amq/amq-scripts/blob/main/animeShortcuts.user.js All shortcuts with the smallest length are displayed. Click on a shortcut to highlight it and move it to the front of the list.
 // @author       Einlar, Tutti
 // @match        https://animemusicquiz.com/*
+// @match        https://*.animemusicquiz.com/*
 // @downloadURL  https://github.com/Einlar/AMQScripts/raw/main/amqVivaceShortcuts.user.js
 // @updateURL    https://github.com/Einlar/AMQScripts/raw/main/amqVivaceShortcuts.user.js
 // @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
@@ -14,6 +15,9 @@
 
 /**
  * CHANGELOG
+ *
+ * v1.5
+ * - Make the script work also on AMQ subdomains (since at the moment the main AMQ domain is not working).
  *
  * v1.4
  * - Click on a shortcut to highlight it and move it to the front of the list. The highlighed shortcuts are stored in local storage.
