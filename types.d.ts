@@ -34,6 +34,9 @@ declare class QuizAnswerInput {
   submitAnswer: (showState: boolean) => void;
   typingInput: {
     $input: JQuery<HTMLInputElement>;
+    quizAnswerState: {
+      currentAnswer: string | null;
+    };
     autoCompleteController: {
       updateList: () => void;
       list: string[];
