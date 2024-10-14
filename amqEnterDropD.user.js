@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Enter DropD
 // @namespace    http://tampermonkey.net/
-// @version      1.7
+// @version      1.8
 // @description  Pressing Enter in the answer input will automatically send the value of the first suggestion in the dropdown list, or the highlighted item if any. If you don't press Enter before the guessing phase ends, this will happen automatically (except if you or any teammate already submitted a valid answer). Activate/deactivate with [ALT+Q].
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -13,6 +13,9 @@
 
 /**
  * CHANGELOG
+ *
+ * v1.8
+ * - Avoid sending the answer when guess phase ends if it was already submitted before (as this would just mess the timing).
  *
  * v1.7
  * - If the player already submitted a valid answer, avoid replacing it with the first item from the dropdown (or the highlighted one).
@@ -115,8 +118,12 @@ const setupDropD = () => {
 
     const currentAnswer = $("#qpAnswerInput").val();
 
-    // If the current answer is valid, submit it
-    if (typeof currentAnswer === "string" && isValidAnime(currentAnswer)) {
+    // If the current answer is valid, submit it if it wasn't already submitted
+    if (
+      typeof currentAnswer === "string" &&
+      isValidAnime(currentAnswer) &&
+      getLastSubmittedAnswer() !== currentAnswer
+    ) {
       quiz.answerInput.submitAnswer(true);
       return;
     }
