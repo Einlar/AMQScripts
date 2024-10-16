@@ -5,8 +5,8 @@
 // @description  Show the Song/Artist matches for the current song when playing in a S/A room with the Ensemble Song Artist script enabled. Works even while spectating!
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
-// @downloadURL  https://github.com/Einlar/AMQScripts/raw/develop/amqMayTheMelodyReachYou.user.js
-// @updateURL    https://github.com/Einlar/AMQScripts/raw/develop/amqMayTheMelodyReachYou.user.js
+// @downloadURL  https://github.com/Einlar/AMQScripts/raw/experimental/amqMayTheMelodyReachYou.user.js
+// @updateURL    https://github.com/Einlar/AMQScripts/raw/experimental/amqMayTheMelodyReachYou.user.js
 // @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
 // @grant        none
 // @icon         https://i.imgur.com/o8hOqsv.png
