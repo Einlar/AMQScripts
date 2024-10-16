@@ -28,6 +28,14 @@ declare class Quiz {
   players: Record<number, Player>;
 
   setupQuiz: (...args: any[]) => void;
+
+  quizDescription: {
+    /** Quiz UUID */
+    quizId: string;
+    roomName: string;
+    /** Date in ISO-8601 format */
+    startTime: string;
+  };
 }
 
 declare class QuizAnswerInput {
@@ -100,8 +108,12 @@ export type GameStartingPayload = {
   showSelection: number;
   players: any[];
   groupSlotMap: Record<string, number[]>;
-  multipleChoiceEnabled: boolean;
-  quizIdentifier: any;
+  multipleChoice: boolean;
+  quizDescription: {
+    quizId: string;
+    startTime: string;
+    roomName: string;
+  };
   gameMode: Gamemode;
 };
 
@@ -155,6 +167,17 @@ export type SongInfo = {
     aniListId: number;
   };
   artistInfo: Artist | Group;
+};
+
+export type Guess = {
+  bestGuess: string;
+  bestScore: number;
+};
+
+export type Stats = {
+  songName: Guess;
+  group?: Guess;
+  artists: Guess[];
 };
 
 export class ListenerClass {
