@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ May the Melody Reach You
 // @namespace    http://tampermonkey.net/
-// @version      0.23
+// @version      0.3
 // @description  Show the Song/Artist matches for the current song when playing in a S/A room with the Ensemble Song Artist script enabled. Works even while spectating!
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -78,9 +78,7 @@ const setAnswers = (answers) => {
   if (!quiz.isSpectator) return;
 
   Object.values(quiz.players).forEach((player) => {
-    if (answers[player.gamePlayerId]) {
-      player.answer = answers[player.gamePlayerId];
-    }
+    player.answer = answers[player.gamePlayerId] || "";
   });
 };
 
@@ -113,7 +111,7 @@ const setup = () => {
         ws.pong();
         break;
       case "latency":
-        console.log("Latency:", parsed.latency);
+        songInfo.setLatency(parsed.latency);
         break;
     }
   });
@@ -164,7 +162,11 @@ class SongInfo {
    */
   matchedArtistsOrder = [];
 
-  constructor() {}
+  constructor() {
+    $("#qpSongInfoLinkRow").before(
+      $(/* html */ `<div id="esaSpacer" style="height: 100px;"></div>`)
+    );
+  }
 
   /**
    * Setup the SongInfo box
@@ -174,7 +176,10 @@ class SongInfo {
     $("#qpInfoHider").append(
       $(/* html */ `
         <div class="esaSongInfoList" id="esaSongInfo">
-          <div class="esaSongInfoTitle"><h3>S/A Info</h3></div>
+          <div class="esaSongInfoTitle">
+            <h3>S/A Info</h3>
+            <p style="text-align: center; font-size: 10px; margin: 0; margin-top: -10px;" id="esaLatency"></p>
+          </div>
   
           <div id="esaSongInfoSongName">
             <div class="esaSongInfoHeader">Song Name</div>
@@ -193,6 +198,16 @@ class SongInfo {
         </div>
         `)
     );
+    // Hide the box until data is available
+    this.hide();
+  }
+
+  /**
+   * Set the latency shown in the SongInfo box
+   * @param {number} latency
+   */
+  setLatency(latency) {
+    $("#esaLatency").text(`(${latency}ms)`);
   }
 
   /**
