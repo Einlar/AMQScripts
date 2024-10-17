@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ May the Melody Reach You
 // @namespace    http://tampermonkey.net/
-// @version      0.21
+// @version      0.22
 // @description  Show the Song/Artist matches for the current song when playing in a S/A room with the Ensemble Song Artist script enabled. Works even while spectating!
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -59,6 +59,12 @@ class WebSocketClient {
       this.ws = null;
     }
   }
+
+  pong() {
+    if (this.ws) {
+      this.ws.send(JSON.stringify({ type: "pong" }));
+    }
+  }
 }
 
 /**
@@ -90,7 +96,13 @@ const setup = () => {
     if (!quiz.inQuiz || quiz.quizDescription.quizId !== currentQuizId) {
       return ws.disconnect();
     }
-    const data = JSON.parse(msg)["data"];
+    const parsed = JSON.parse(msg);
+
+    if (parsed.type === "ping") {
+      return ws.pong();
+    }
+
+    const data = parsed.data;
 
     if (data?.stats) {
       songInfo.setStats(data.stats);
