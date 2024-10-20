@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ May the Melody Reach You
 // @namespace    http://tampermonkey.net/
-// @version      0.3
+// @version      0.4
 // @description  Show the Song/Artist matches for the current song when playing in a S/A room with the Ensemble Song Artist script enabled. Works even while spectating!
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -54,7 +54,7 @@ class WebSocketClient {
    */
   disconnect() {
     if (this.ws) {
-      gameChat.systemMessage("Disconnected from S/A data (retry with ALT+W)");
+      gameChat.systemMessage("Disconnected from S/A data (retry with ALT+B)");
       this.ws.close();
       this.ws = null;
     }
@@ -113,6 +113,9 @@ const setup = () => {
       case "latency":
         songInfo.setLatency(parsed.latency);
         break;
+      case "skip":
+        quiz.skipController.voteSkip();
+        break;
     }
   });
 
@@ -121,18 +124,19 @@ const setup = () => {
    */
   const start = (quizId) => {
     songInfo.setup();
-    gameChat.systemMessage("Connecting to S/A data... (disable with ALT+W)");
+    gameChat.systemMessage("Connecting to S/A data... (disable with ALT+B)");
     currentQuizId = quizId;
     ws.connect(currentQuizId);
   };
 
   const stop = () => {
+    gameChat.systemMessage("Disconnected from S/A data");
     songInfo.reset();
     ws.disconnect();
   };
 
   document.addEventListener("keydown", (e) => {
-    if (e.altKey && e.key === "w") {
+    if (e.altKey && e.key === "b") {
       active = ws === null ? true : !active;
 
       if (!active) {
@@ -163,9 +167,16 @@ class SongInfo {
   matchedArtistsOrder = [];
 
   constructor() {
+    // Add a spacer to expand the SongInfo box up to the answer input dynamically
     $("#qpSongInfoLinkRow").before(
-      $(/* html */ `<div id="esaSpacer" style="height: 100px;"></div>`)
+      $(/* html */ `
+      <div id="esaSpacer"></div>
+      `)
     );
+
+    new Listener("answer results", () => {
+      $("#esaSpacer").hide();
+    }).bindListener();
   }
 
   /**
@@ -223,14 +234,17 @@ class SongInfo {
           ? "esaSongInfoItemScoreCorrect"
           : "esaSongInfoItemScorePartial";
 
-    const $match = $(/*html*/ `<div class="esaSongInfoMatch">
-        <div class="esaSongInfoItemName">${
+    const $match = $("<div>", { class: "esaSongInfoMatch" })
+      .append(
+        $("<div>", { class: "esaSongInfoItemName" }).text(
           bestGuess === "" ? "???" : bestGuess
-        }</div>
-        <div class="esaSongInfoItemScore ${scoreClass}">${Math.round(
-      bestScore
-    )}%</div>
-      </div>`);
+        )
+      )
+      .append(
+        $("<div>", { class: `esaSongInfoItemScore ${scoreClass}` }).text(
+          `${Math.round(bestScore)}%`
+        )
+      );
     return $match;
   }
 
@@ -292,9 +306,25 @@ class SongInfo {
 
   hide() {
     $("#esaSongInfo").hide();
+    $("#esaSpacer").hide();
   }
 
   show() {
+    // Expand the SongInfo box up to the answer input
+    const songInfoContainer = $("#qpSongInfoContainer");
+    const answerInputContainer = $("#qpAnswerInputContainer");
+
+    const offset = Math.ceil(
+      (answerInputContainer.offset()?.top ?? 0) +
+        (answerInputContainer.height() ?? 0) -
+        ((songInfoContainer.offset()?.top ?? 0) +
+          (songInfoContainer.height() ?? 0))
+    );
+    if (offset > 0) {
+      $("#esaSpacer").height(offset);
+      $("#esaSpacer").show();
+    }
+
     $("#esaSongInfo").show();
   }
 
