@@ -146,6 +146,10 @@ const setup = () => {
       if (active && quiz.inQuiz) {
         start(quiz.quizDescription.quizId);
       }
+
+      if (active && !quiz.inQuiz) {
+        gameChat.systemMessage("S/A data active, waiting for quiz to start...");
+      }
     }
   });
 
