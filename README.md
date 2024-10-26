@@ -34,6 +34,10 @@ A faster way to pick an item from the dropdown, useful for playing in impossible
 - If you don't press Enter before the guessing phase ends, this will happen automatically (except if a teammate already submitted a valid answer).
 - Activate/deactivate with `ALT + Q` (starts deactivated).
 
+### May The Sample Go On - [Install](https://github.com/Einlar/AMQScripts/raw/main/amqMayTheSampleGoOn.user.js)
+
+Prevents the sample from restarting when guess phase ends. Updated from [Mxyuki's version](https://github.com/Mxyuki/AMQ-Scripts/blob/main/amqNoSampleReset.user.js).
+
 ## Developer Instructions
 
 - Just run `npm install` to install some dev dependencies (types & [eslint](https://eslint.org/)).
