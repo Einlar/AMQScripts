@@ -1,3 +1,5 @@
+import videojs from "videojs";
+
 export {};
 
 declare class Quiz {
@@ -205,12 +207,44 @@ export type AMQSocket = {
   }) => void;
  */
 
+declare class QuizVideoController {
+  getCurrentVideoUrl: () => string | null;
+
+  getCurrentPlayer: () => MoePlayer;
+
+  /**
+   * Function called to play the next video in the quiz
+   */
+  playNextVideo: () => void;
+
+  moePlayers: MoePlayer[];
+}
+
+declare class MoePlayer {
+  player: videojs.Player;
+  replayVideo: () => void;
+  lastSeenTime: number;
+  $player: JQuery<HTMLVideoElement>;
+  videoMap: {
+    catbox?: {
+      "0"?: string;
+      "480"?: string;
+      "720"?: string;
+    };
+    openingsmoe?: {
+      "480"?: string;
+      "720"?: string;
+    };
+  };
+}
+
 declare global {
   var gameChat: GameChat;
   var quiz: Quiz;
   var lobby: Lobby;
   var Listener: typeof ListenerClass;
   var socket: AMQSocket;
+  var quizVideoController: QuizVideoController;
 
   /**
    * The name of the user
