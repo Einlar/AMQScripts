@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MayTheSampleGoOn
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  When guessing phase end doesn't restart from the start sample but continue the music. Adapted from Mxyuki's script.
 // @author       Mxyuki, Einlar
 // @match        https://animemusicquiz.com/*
@@ -14,6 +14,7 @@
 /**
  * CHANGELOG
  *
+ * 1.1 - When looping, start from the very beginning and not just the sample start time.
  * 1.0 - Prevent the AMQ anti-cheat from breaking the sample looping.
  */
 
@@ -35,7 +36,10 @@ new Listener("answer results", (payload) => {
     if (!isLooperSetup) {
       isLooperSetup = true;
       Object.values(quizVideoController.moePlayers).forEach((moePlayer) => {
-        moePlayer.player.on("ended", () => moePlayer.replayVideo());
+        moePlayer.player.on("ended", () => {
+          moePlayer.lastSeenTime = 0;
+          moePlayer.player.currentTime(0);
+        });
       });
     }
   }, 0.0001);
