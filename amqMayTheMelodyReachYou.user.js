@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ May the Melody Reach You
 // @namespace    http://tampermonkey.net/
-// @version      0.45
+// @version      0.5
 // @description  Show the Song/Artist matches for the current song when playing in a S/A room with the Ensemble Song Artist script enabled. Works even while spectating!
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -44,6 +44,10 @@ class WebSocketClient {
     this.ws.onopen = () => {
       gameChat.systemMessage("Connected to S/A data 🎺");
     };
+    this.ws.onclose = () => {
+      gameChat.systemMessage("Disconnected from S/A data (retry with ALT+B)");
+      this.ws = null;
+    };
     this.ws.onmessage = (event) => {
       this.callback(event.data);
     };
@@ -82,6 +86,28 @@ const setAnswers = (answers) => {
   });
 };
 
+/**
+ * @typedef {Object} StateMessage
+ * @property {"state"} type
+ * @property {string} quizId
+ * @property {any} state
+ *
+ * @typedef {Object} BroadcastMessage
+ * @property {"broadcast"} type
+ * @property {string} quizId
+ * @property {any} payload
+ *
+ * @typedef {Object} PingMessage
+ * @property {"ping"} type
+ * @property {number} timestamp
+ *
+ * @typedef {Object} LatencyMessage
+ * @property {"latency"} type
+ * @property {number} latency
+ *
+ * @typedef {StateMessage | BroadcastMessage | PingMessage | LatencyMessage} Message
+ */
+
 const setup = () => {
   let active = false;
 
@@ -94,17 +120,18 @@ const setup = () => {
     if (!quiz.inQuiz || quiz.quizDescription.quizId !== currentQuizId) {
       return ws.disconnect();
     }
+    /** @type {Message} */
     const parsed = JSON.parse(msg);
     const type = parsed.type;
 
     switch (type) {
-      case "data":
-        if (parsed.data?.stats) {
-          songInfo.setStats(parsed.data.stats);
+      case "state":
+        if (parsed.state?.stats) {
+          songInfo.setStats(parsed.state.stats);
         }
 
-        if (parsed.data?.answers) {
-          setAnswers(parsed.data.answers);
+        if (parsed.state?.answers) {
+          setAnswers(parsed.state.answers);
         }
         break;
       case "ping":
@@ -113,8 +140,8 @@ const setup = () => {
       case "latency":
         songInfo.setLatency(parsed.latency);
         break;
-      case "skip":
-        quiz.skipController.voteSkip();
+      case "broadcast":
+        if (parsed.payload.skip === true) quiz.skipController.voteSkip();
         break;
     }
   });
