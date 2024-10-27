@@ -13,6 +13,8 @@
 // ==/UserScript==
 
 const SOCKET_URL = "wss://amq.amogus.it/";
+const VERSION = "0.55";
+const PREFIX = "[MayTheMelodyReachYou]";
 
 class WebSocketClient {
   /**
@@ -85,6 +87,23 @@ const setAnswers = (answers) => {
 
   Object.values(quiz.players).forEach((player) => {
     player.answer = answers[player.gamePlayerId] || "";
+  });
+};
+
+/**
+ * Send a DM to a player
+ *
+ * @param {string} playerName
+ * @param {string} message
+ */
+const sendDirectMessage = (playerName, message) => {
+  socket.sendCommand({
+    type: "social",
+    command: "chat message",
+    data: {
+      target: playerName,
+      message,
+    },
   });
 };
 
@@ -194,6 +213,27 @@ const setup = () => {
       start(payload.quizDescription.quizId);
     }
   }).bindListener();
+
+  new Listener("chat message", (payload) => {
+    if (payload.message.startsWith(PREFIX)) {
+      const command = payload.message.slice(PREFIX.length).trim();
+      if (command === "version") {
+        sendDirectMessage(payload.sender, `${PREFIX}V:${VERSION}`);
+      }
+      if (command === "activate") {
+        active = true;
+        if (quiz.inQuiz) start(quiz.quizDescription.quizId);
+      }
+    }
+  }).bindListener();
+
+  // Hide script messages from DMs
+  ChatBox.prototype.writeMessage = (function (originalWriteMessage) {
+    return function () {
+      if (arguments[1].startsWith(PREFIX)) return;
+      return originalWriteMessage.apply(this, arguments);
+    };
+  })(ChatBox.prototype.writeMessage);
 };
 
 /**

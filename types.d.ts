@@ -180,6 +180,13 @@ export type Stats = {
   artists: Guess[];
 };
 
+export type ChatMessagePayload = {
+  emojis: any;
+  message: string;
+  modMessage: boolean;
+  sender: string;
+};
+
 export class ListenerClass {
   constructor(
     command: "game chat update",
@@ -203,6 +210,10 @@ export class ListenerClass {
   constructor(
     command: "Spectate Game",
     callback: (data: SpectateGamePayload) => void
+  );
+  constructor(
+    command: "chat message",
+    callback: (data: ChatMessagePayload) => void
   );
   fire: (payload: any) => void;
   bindListener: () => void;
@@ -228,6 +239,15 @@ export type AMQSocket = {
   }) => void;
  */
 
+class ChatBoxClass {
+  writeMessage: (
+    sender: string,
+    msg: string,
+    emojis: any,
+    allowHtml: boolean
+  ) => void;
+}
+
 declare global {
   var gameChat: GameChat;
   var quiz: Quiz;
@@ -250,6 +270,8 @@ declare global {
    * (yeah it is "Seach" in the original code :D)
    */
   var replaceCharactersForSeachCharacters: (inputString: string) => string;
+
+  var ChatBox: typeof ChatBoxClass;
 }
 
 declare class GameChat {
