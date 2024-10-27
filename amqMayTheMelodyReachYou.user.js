@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ May the Melody Reach You
 // @namespace    http://tampermonkey.net/
-// @version      0.5
+// @version      0.55
 // @description  Show the Song/Artist matches for the current song when playing in a S/A room with the Ensemble Song Artist script enabled. Works even while spectating!
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -40,7 +40,9 @@ class WebSocketClient {
    */
   connect(quizId) {
     this.disconnect();
-    this.ws = new WebSocket(SOCKET_URL + "subscribe?quiz_id=" + quizId);
+    this.ws = new WebSocket(
+      SOCKET_URL + "subscribe?quiz_id=" + quizId + `&player_name=${selfName}`
+    );
     this.ws.onopen = () => {
       gameChat.systemMessage("Connected to S/A data 🎺");
     };
@@ -126,6 +128,13 @@ const setup = () => {
 
     switch (type) {
       case "state":
+        if (parsed.state === null) {
+          songInfo.setHostConnection(false);
+          return;
+        }
+
+        songInfo.setHostConnection(true);
+
         if (parsed.state?.stats) {
           songInfo.setStats(parsed.state.stats);
         }
@@ -219,7 +228,7 @@ class SongInfo {
       $(/* html */ `
         <div class="esaSongInfoList" id="esaSongInfo">
           <div class="esaSongInfoTitle">
-            <h3>S/A Info</h3>
+            <h3>S/A Info&nbsp;<span id="esaHostConnection"></span></h3>
             <p style="text-align: center; font-size: 10px; margin: 0; margin-top: -10px;" id="esaLatency"></p>
           </div>
   
@@ -250,6 +259,15 @@ class SongInfo {
    */
   setLatency(latency) {
     $("#esaLatency").text(`(${latency}ms)`);
+  }
+
+  /**
+   * Set whether the host connection is active or not
+   *
+   * @param {boolean} active
+   */
+  setHostConnection(active) {
+    $("#esaHostConnection").text(active ? "🟢" : "🔴");
   }
 
   /**
