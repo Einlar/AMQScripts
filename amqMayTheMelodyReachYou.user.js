@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ May the Melody Reach You
 // @namespace    http://tampermonkey.net/
-// @version      0.55
+// @version      0.60
 // @description  Show the Song/Artist matches for the current song when playing in a S/A room with the Ensemble Song Artist script enabled. Works even while spectating!
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -13,7 +13,7 @@
 // ==/UserScript==
 
 const SOCKET_URL = "wss://amq.amogus.it/";
-const VERSION = "0.55";
+const VERSION = "0.60";
 const PREFIX = "[MayTheMelodyReachYou]";
 
 class WebSocketClient {
@@ -62,7 +62,6 @@ class WebSocketClient {
    */
   disconnect() {
     if (this.ws) {
-      gameChat.systemMessage("Disconnected from S/A data (retry with ALT+B)");
       this.ws.close();
       this.ws = null;
     }
@@ -106,6 +105,37 @@ const sendDirectMessage = (playerName, message) => {
     },
   });
 };
+
+/**
+ * Submit an answer to the quiz
+ *
+ * @param {string} answer
+ */
+const submitAnswer = (answer) => {
+  if (quiz.inQuiz && !quiz.isSpectator) {
+    $("#qpAnswerInput").val(answer);
+    quiz.answerInput.submitAnswer(true);
+  }
+};
+
+/**
+ * Check if a string is a valid anime name (i.e. it appears in the dropdown list). Case insensitive.
+ *
+ * @param {string} animeName
+ */
+const isValidAnime = (animeName) => {
+  return quiz.answerInput.typingInput.autoCompleteController.list.some(
+    (anime) => anime.toLowerCase() === animeName.toLowerCase()
+  );
+};
+
+/**
+ * Retrieve the last submitted answer.
+ *
+ * @returns {string | null}
+ */
+const getLastSubmittedAnswer = () =>
+  quiz.answerInput.typingInput.quizAnswerState.currentAnswer;
 
 /**
  * @typedef {Object} StateMessage
@@ -169,7 +199,12 @@ const setup = () => {
         songInfo.setLatency(parsed.latency);
         break;
       case "broadcast":
-        if (parsed.payload.skip === true) quiz.skipController.voteSkip();
+        if (parsed.payload.skip === true) {
+          // Reset answer to avoid messing up the team guess (but only if necessary)
+          const answer = getLastSubmittedAnswer();
+          if (answer && isValidAnime(answer)) submitAnswer("/");
+          quiz.skipController.voteSkip();
+        }
         break;
     }
   });
