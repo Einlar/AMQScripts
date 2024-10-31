@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ May the Melody Reach You
 // @namespace    http://tampermonkey.net/
-// @version      0.60
+// @version      0.65
 // @description  Show the Song/Artist matches for the current song when playing in a S/A room with the Ensemble Song Artist script enabled. Works even while spectating!
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -13,7 +13,7 @@
 // ==/UserScript==
 
 const SOCKET_URL = "wss://amq.amogus.it/";
-const VERSION = "0.60";
+const API_VERSION = "0.60";
 const PREFIX = "[MayTheMelodyReachYou]";
 
 class WebSocketClient {
@@ -253,7 +253,7 @@ const setup = () => {
     if (payload.message.startsWith(PREFIX)) {
       const command = payload.message.slice(PREFIX.length).trim();
       if (command === "version") {
-        sendDirectMessage(payload.sender, `${PREFIX}V:${VERSION}`);
+        sendDirectMessage(payload.sender, `${PREFIX}V:${API_VERSION}`);
       }
       if (command === "activate") {
         active = true;
@@ -498,6 +498,7 @@ const setupMetadata = () => {
         height: auto;
         max-width: 70%;
         font-family: Menlo,Monaco,Consolas,"Courier New",monospace;
+        text-align: left;
     }
 
     .esaSongInfoItemScore {
