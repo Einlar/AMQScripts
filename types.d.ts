@@ -125,7 +125,28 @@ export type TeamMemberAnswerPayload = {
 };
 
 export type AnswerResultsPayload = {
+  players: Record<number, PlayerResults>;
+  progressBarState: {
+    length: number;
+    played: number;
+  };
+  groupMap: Record<number, number>;
   songInfo: SongInfo;
+  watched: boolean;
+  likedState: number;
+};
+
+export type PlayerResults = {
+  gamePlayerId: number;
+  pose: number;
+  level: number;
+  correct: false;
+  score: number;
+  listStatus: number;
+  showScore: number;
+  listNumber: number;
+  position: number;
+  positionSlot: number;
 };
 
 export type SpectateGamePayload = {
@@ -238,6 +259,15 @@ declare class MoePlayer {
   };
 }
 
+/**
+ * @see https://socket.animemusicquiz.com/scripts/pages/gamePage/gameSettings/hostModal.js
+ */
+export class HostModal {
+  displayHostSolo: () => void;
+  $roomName: JQuery<HTMLInputElement>;
+  getSettings: () => any;
+}
+
 declare global {
   var gameChat: GameChat;
   var quiz: Quiz;
@@ -261,6 +291,18 @@ declare global {
    * (yeah it is "Seach" in the original code :D)
    */
   var replaceCharactersForSeachCharacters: (inputString: string) => string;
+
+  var AMQ_addScriptData: (metadata: {
+    name?: string;
+    author?: string;
+    version?: string;
+    link?: string;
+    description?: string;
+  }) => void;
+
+  var AMQ_addStyle: (css: string) => void;
+
+  var hostModal: HostModal;
 }
 
 declare class GameChat {
