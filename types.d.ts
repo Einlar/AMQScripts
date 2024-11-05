@@ -36,6 +36,11 @@ declare class Quiz {
     /** Date in ISO-8601 format */
     startTime: string;
   };
+
+  /** @see https://animemusicquiz.com/scripts/pages/gamePage/game/quiz/quizInfoContainer.js */
+  infoContainer: {
+    currentSongNumber: number;
+  };
 }
 
 declare class QuizAnswerInput {
