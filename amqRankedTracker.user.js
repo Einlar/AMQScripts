@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Ranked Tracker
 // @namespace    http://tampermonkey.net/
-// @version      0.1
+// @version      0.2
 // @description  Track which days you played ranked games, and your score for that day. Access the data in the AMQ settings menu, under "Ranked Tracker".
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -71,7 +71,9 @@ function createPersistentDictionary(storageKey, validator) {
  */
 const rankedKey = () => {
   const region = $("#mpRankedTimer h3").text() || "";
-  const type = hostModal.$roomName.val();
+  const type = hostModal.$roomName.val()?.includes("Expert")
+    ? "Expert"
+    : "Novice";
 
   return `${new Date().toISOString().split("T")[0]} ${region} ${type}`;
 };
@@ -128,7 +130,7 @@ const setupScript = () => {
       const key = rankedKey();
       rankedHistory[key] = myScore;
     }
-  });
+  }).bindListener();
 
   // Add a button in the settings
   $("#optionListSettings").before(
@@ -269,7 +271,6 @@ const setupScript = () => {
               hasScores = true;
               const regionShort = parsedKey.region;
               const score = rankedHistory[key];
-              console.log(parsedKey.type);
               cellContent.append(
                 $(
                   /*html*/ `<div style="color: ${
