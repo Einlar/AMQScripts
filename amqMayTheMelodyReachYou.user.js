@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ May the Melody Reach You
 // @namespace    http://tampermonkey.net/
-// @version      0.70
+// @version      0.75
 // @description  Show the Song/Artist matches for the current song when playing in a S/A room with the Ensemble Song Artist script enabled. Works even while spectating!
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -67,9 +67,12 @@ class WebSocketClient {
     }
   }
 
-  pong() {
+  /**
+   * @param {string} id
+   */
+  pong(id) {
     if (this.ws) {
-      this.ws.send(JSON.stringify({ type: "pong" }));
+      this.ws.send(JSON.stringify({ type: "pong", id }));
     }
   }
 }
@@ -150,7 +153,7 @@ const getLastSubmittedAnswer = () =>
  *
  * @typedef {Object} PingMessage
  * @property {"ping"} type
- * @property {number} timestamp
+ * @property {string} id
  *
  * @typedef {Object} LatencyMessage
  * @property {"latency"} type
@@ -193,7 +196,8 @@ const setup = () => {
         }
         break;
       case "ping":
-        ws.pong();
+        const id = parsed.id;
+        ws.pong(id);
         break;
       case "latency":
         songInfo.setLatency(parsed.latency);
