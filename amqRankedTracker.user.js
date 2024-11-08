@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Ranked Tracker
 // @namespace    http://tampermonkey.net/
-// @version      0.2
+// @version      0.3
 // @description  Track which days you played ranked games, and your score for that day. Access the data in the AMQ settings menu, under "Ranked Tracker".
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -340,11 +340,53 @@ const setupScript = () => {
     rankedTrackerContent.append(calendarTable);
   };
 
+  const renderStats = () => {
+    const rankedTrackerStats = $("#rankedTrackerStats");
+    rankedTrackerStats.empty();
+
+    // Find highest score and most recent date
+    let highestScore = 0;
+    let mostRecentDate = "";
+
+    for (const key in rankedHistory) {
+      const score = rankedHistory[key];
+      if (score > highestScore) {
+        highestScore = score;
+        mostRecentDate = parseRankedKey(key)?.date || "";
+      } else if (score === highestScore && key > mostRecentDate) {
+        mostRecentDate = parseRankedKey(key)?.date || "";
+      }
+    }
+
+    // Calculate days ago
+    const daysAgo = mostRecentDate
+      ? Math.floor(
+          (new Date().getTime() - new Date(mostRecentDate).getTime()) /
+            (1000 * 60 * 60 * 24)
+        )
+      : 0;
+
+    // Create stats box
+    const statsBox = $(/*html*/ `
+  <div style="border: 1px solid var(--primaryColorContrast, initial); padding: 10px; margin: 10px;">
+    <h4>Personal Best</h4>
+    <p>Highest Score: ${highestScore}</p>
+    <p>Achieved on: ${mostRecentDate}</p>
+    <p>(${daysAgo} days ago)</p>
+  </div>
+`);
+
+    rankedTrackerStats.append(statsBox);
+  };
+
   // Initial render
   renderRankedHistory();
 
   // Update each time the modal is shown
-  $("#rankedTrackerModal").on("shown.bs.modal", () => renderRankedHistory());
+  $("#rankedTrackerModal").on("shown.bs.modal", () => {
+    renderRankedHistory();
+    renderStats();
+  });
 };
 
 /**
