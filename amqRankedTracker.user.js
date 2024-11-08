@@ -149,17 +149,55 @@ const setupScript = () => {
               <span aria-hidden="true">×</span>
             </button>
             <h4 class="modal-title">Ranked Tracker</h4>
+            <div class="tabContainer">
+              <div id="rtHistoryTab" class="tab clickAble selected">
+                <h5>History</h5>
+              </div>
+              <div id="rtStatsTab" class="tab clickAble">
+                <h5>Stats</h5>
+              </div>
+            </div>
           </div>
 
           <!-- Body -->
           <div class="modal-body" style="overflow-y: auto; max-height: calc(100vh - 150px);">
-            <div id="rankedTrackerContent"></div>
+            <div id="rtHistoryContainer">
+              <div id="rankedTrackerContent"></div>
+            </div>
+            <div id="rtStatsContainer">
+              <div id="rankedTrackerStats"></div>
+            </div>
           </div>
         </div>
       </div>
     </div>
     `)
   );
+
+  const tabs = /** @type {const} */ (["rtHistory", "rtStats"]);
+
+  /**
+   * Switch to a different tab in the settings modal
+   *
+   * @param {tabs[number]} tab
+   */
+  const switchTab = (tab) => {
+    tabs.forEach((t) => {
+      if (t === tab) {
+        $(`#${t}Tab`).addClass("selected");
+        $(`#${t}Container`).show();
+      } else {
+        $(`#${t}Tab`).removeClass("selected");
+        $(`#${t}Container`).hide();
+      }
+    });
+  };
+
+  tabs.forEach((tab) => {
+    $(`#${tab}Tab`).on("click", () => switchTab(tab));
+  });
+
+  switchTab("rtHistory");
 
   const rankedTrackerContent = $("#rankedTrackerContent");
 
