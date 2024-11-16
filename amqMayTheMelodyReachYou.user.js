@@ -168,6 +168,16 @@ const setup = () => {
   /** @type {string | null} */
   let currentQuizId = null;
 
+  /**
+   * An hidden div that contains the S/A status (active or not). Create it with an id "esaIntegration" and append to body
+   */
+  $(document.body).append(
+    $(/* html */ `
+    <div id="esaIntegration" style="display: none;">off</div>
+    `)
+  );
+  const $esaIntegration = $("#esaIntegration");
+
   const songInfo = new SongInfo();
 
   const ws = new WebSocketClient((msg) => {
@@ -223,6 +233,14 @@ const setup = () => {
   });
 
   /**
+   * Check if something else (e.g. the Ensemble S/A script) is already filling the SongInfo box.
+   */
+  const isSongInfoBoxFilled = () => {
+    console.log($("#qpInfoHider").text().trim());
+    return $("#qpInfoHider").text().trim() !== "?";
+  };
+
+  /**
    * @param {string} quizId
    */
   const start = (quizId) => {
@@ -238,23 +256,37 @@ const setup = () => {
     ws.disconnect();
   };
 
-  document.addEventListener("keydown", (e) => {
-    if ((e.altKey || e.metaKey) && e.key === "b") {
-      active = ws === null ? true : !active;
+  const toggle = () => {
+    active = ws === null ? true : !active;
 
-      if (!active) {
-        stop();
-      }
-
-      if (active && quiz.inQuiz) {
-        start(quiz.quizDescription.quizId);
-      }
-
-      if (active && !quiz.inQuiz) {
+    if (active) {
+      if (isSongInfoBoxFilled()) {
+        active = false;
         gameChat.systemMessage(
-          "S/A integration active, waiting for quiz to start..."
+          "S/A integration cannot be enabled because the SongInfo box is already in use. Please disable the Ensemble S/A and try again."
         );
+        return;
       }
+      $esaIntegration.text("on");
+    } else {
+      stop();
+      $esaIntegration.text("off");
+    }
+
+    if (active && quiz.inQuiz) {
+      start(quiz.quizDescription.quizId);
+    }
+
+    if (active && !quiz.inQuiz) {
+      gameChat.systemMessage(
+        "S/A integration active, waiting for quiz to start..."
+      );
+    }
+  };
+
+  document.addEventListener("keydown", (e) => {
+    if ((e.altKey || e.metaKey) && e.code === "KeyB") {
+      toggle();
     }
   });
 
@@ -271,8 +303,7 @@ const setup = () => {
         sendDirectMessage(payload.sender, `${PREFIX}V:${API_VERSION}`);
       }
       if (command === "activate") {
-        active = true;
-        if (quiz.inQuiz) start(quiz.quizDescription.quizId);
+        if (!active) toggle();
       }
     }
   }).bindListener();
