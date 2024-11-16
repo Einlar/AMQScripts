@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ May the Melody Reach You
 // @namespace    http://tampermonkey.net/
-// @version      0.75
+// @version      0.80
 // @description  Show the Song/Artist matches for the current song when playing in a S/A room with the Ensemble Song Artist script enabled. Works even while spectating!
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -49,7 +49,7 @@ class WebSocketClient {
       gameChat.systemMessage("Connected to S/A data 🎺");
     };
     this.ws.onclose = () => {
-      gameChat.systemMessage("Disconnected from S/A data (retry with ALT+B)");
+      gameChat.systemMessage("Disconnected from S/A data ❌");
       this.ws = null;
     };
     this.ws.onmessage = (event) => {
@@ -227,13 +227,13 @@ const setup = () => {
    */
   const start = (quizId) => {
     songInfo.setup();
-    gameChat.systemMessage("Connecting to S/A data... (disable with ALT+B)");
+    gameChat.systemMessage("S/A integration enabled (toggle with ALT+B)");
     currentQuizId = quizId;
     ws.connect(currentQuizId);
   };
 
   const stop = () => {
-    gameChat.systemMessage("Disconnected from S/A data");
+    gameChat.systemMessage("S/A integration disabled");
     songInfo.reset();
     ws.disconnect();
   };
@@ -251,7 +251,9 @@ const setup = () => {
       }
 
       if (active && !quiz.inQuiz) {
-        gameChat.systemMessage("S/A data active, waiting for quiz to start...");
+        gameChat.systemMessage(
+          "S/A integration active, waiting for quiz to start..."
+        );
       }
     }
   });
