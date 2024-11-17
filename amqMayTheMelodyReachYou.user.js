@@ -272,7 +272,12 @@ const setup = () => {
     ws.disconnect();
   };
 
-  const toggle = () => {
+  /**
+   * Toggle the S/A integration on/off
+   *
+   * @param {boolean} [targetState] If provided, set the integration to this value instead of toggling
+   */
+  const toggle = (targetState) => {
     if (!lobby.inLobby && !quiz.inQuiz && !quiz.isSpectator) return;
 
     const newRoomId = hostModal.roomId;
@@ -283,6 +288,7 @@ const setup = () => {
     }
 
     active = ws === null ? true : !active;
+    if (targetState !== undefined) active = targetState;
 
     if (active) {
       if (isSongInfoBoxFilled()) {
@@ -332,7 +338,7 @@ const setup = () => {
         sendDirectMessage(payload.sender, `${PREFIX}V:${API_VERSION}`);
       }
       if (command === "activate") {
-        if (!active) toggle();
+        toggle(true);
       }
     }
   }).bindListener();
