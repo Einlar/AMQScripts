@@ -253,6 +253,16 @@ class ChatBoxClass {
   ) => void;
 }
 
+/**
+ * @see https://socket.animemusicquiz.com/scripts/pages/gamePage/gameSettings/hostModal.js
+ */
+export class HostModal {
+  displayHostSolo: () => void;
+  $roomName: JQuery<HTMLInputElement>;
+  getSettings: () => any;
+  roomId: number | "";
+}
+
 declare global {
   var gameChat: GameChat;
   var quiz: Quiz;
@@ -277,6 +287,7 @@ declare global {
   var replaceCharactersForSeachCharacters: (inputString: string) => string;
 
   var ChatBox: typeof ChatBoxClass;
+  var hostModal: HostModal;
 }
 
 declare class GameChat {
