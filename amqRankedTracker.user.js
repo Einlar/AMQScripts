@@ -124,11 +124,13 @@ const setupScript = () => {
   new Listener("answer results", (payload) => {
     if (quiz.inQuiz && quiz.gameMode === "Ranked") {
       const myGamePlayerId = playerId();
-      if (!myGamePlayerId) return;
+      if (myGamePlayerId === undefined) return;
 
-      const myScore = payload.players[myGamePlayerId].score;
+      const myScore = Object.values(payload.players).find(
+        (p) => p.gamePlayerId === myGamePlayerId
+      )?.score;
       const key = rankedKey();
-      rankedHistory[key] = myScore;
+      if (myScore !== undefined) rankedHistory[key] = myScore;
     }
   }).bindListener();
 
