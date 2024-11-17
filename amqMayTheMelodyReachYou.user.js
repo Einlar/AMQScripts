@@ -16,6 +16,12 @@ const SOCKET_URL = "wss://amq.amogus.it/";
 const API_VERSION = "0.60";
 const PREFIX = "[MayTheMelodyReachYou]";
 
+/** @type {import('./types').Stats} */
+const UNDEFINED_STATS = {
+  songName: { bestGuess: "Undefined", bestScore: 100 },
+  artists: [],
+};
+
 class WebSocketClient {
   /**
    * The currently connected WebSocket (if any)
@@ -205,7 +211,10 @@ const setup = () => {
         songInfo.setHostConnection(true);
 
         if (parsed.state?.stats) {
-          songInfo.setStats(parsed.state.stats);
+          const stats = parsed.state.stats;
+          songInfo.setStats(
+            JSON.stringify(stats) === "{}" ? UNDEFINED_STATS : stats
+          );
         }
 
         if (parsed.state?.answers) {
@@ -243,7 +252,6 @@ const setup = () => {
    * Check if something else (e.g. the Ensemble S/A script) is already filling the SongInfo box.
    */
   const isSongInfoBoxFilled = () => {
-    console.log($("#qpInfoHider").text().trim());
     return $("#qpInfoHider").text().trim() !== "?";
   };
 
@@ -252,6 +260,7 @@ const setup = () => {
    */
   const start = (quizId) => {
     songInfo.setup();
+    songInfo.setStats(UNDEFINED_STATS);
     gameChat.systemMessage("S/A integration enabled (toggle with ALT+B)");
     currentQuizId = quizId;
     ws.connect(currentQuizId);
