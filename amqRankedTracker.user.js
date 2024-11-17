@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Ranked Tracker
 // @namespace    http://tampermonkey.net/
-// @version      0.3
+// @version      0.4
 // @description  Track which days you played ranked games, and your score for that day. Access the data in the AMQ settings menu, under "Ranked Tracker".
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
