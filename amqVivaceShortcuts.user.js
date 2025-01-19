@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Vivace! Shortcuts
 // @namespace    http://tampermonkey.net/
-// @version      1.5
+// @version      1.6
 // @description  Displays at least 3 of the shortest shortcuts for an anime after guessing phase, defined as the shortest substrings of length 10 or less for which the target anime (or any of its alt names) is the first suggestion in the dropdown list (or one of the top ones, in case it is not possible to do better). Adapted from https://github.com/tutti-amq/amq-scripts/blob/main/animeShortcuts.user.js All shortcuts with the smallest length are displayed. Click on a shortcut to highlight it and move it to the front of the list.
 // @author       Einlar, Tutti
 // @match        https://animemusicquiz.com/*
@@ -15,6 +15,10 @@
 
 /**
  * CHANGELOG
+ *
+ * v1.6
+ * - Remove shortcuts containing "∞" (e.g. for "Naki∞Neko")
+ * - Fix a bug that prevented to highlight shortcuts containing a " (double quote).
  *
  * v1.5
  * - Make the script work also on AMQ subdomains (since at the moment the main AMQ domain is not working).
@@ -134,6 +138,13 @@ const ALLOWED_SPECIAL_CHARACTERS = [
 ];
 
 /**
+ * These special characters are not matched by AMQ with a space, but they should still not be allowed in shortcuts.
+ *
+ * @type {string[]}
+ */
+const DISALLOWED_SPECIAL_CHARACTERS = ["∞"];
+
+/**
  * Shortcuts to be shown
  *
  * @type {string[]}
@@ -197,14 +208,20 @@ const mapToAlternativeSubstrings = (substring) => {
   const alternatives = new Set();
 
   // Add the AMQ replacement
-  alternatives.add(replaceCharactersForSeachCharacters(substring));
+  alternatives.add(
+    replaceCharactersForSeachCharacters(substring).replace(
+      new RegExp(DISALLOWED_SPECIAL_CHARACTERS.join("|"), "g"),
+      ""
+    )
+  );
 
   // Apply mandatory replacements
-  let normalized = substring.replace(/./g, (char) =>
-    ALLOWED_SPECIAL_CHARACTERS.includes(/** @type {any} */ (char))
-      ? char
-      : NORMALIZATION_MAP[char] || char
-  );
+  let normalized = substring.replace(/./g, (char) => {
+    if (DISALLOWED_SPECIAL_CHARACTERS.includes(char)) return "";
+    if (ALLOWED_SPECIAL_CHARACTERS.includes(/** @type {any} */ (char)))
+      return char;
+    return NORMALIZATION_MAP[char] || char;
+  });
   alternatives.add(normalized);
 
   // Simple alternatives
@@ -315,9 +332,13 @@ const optimizedShortcuts = (targets) => {
  * Render the shortcuts in the infoDiv.
  */
 const renderShortcuts = () => {
-  $(infoDiv).html(
-    `<h5><b>Anime shortcuts: </b></h5>${formatShortcuts(shortcuts)}<br><br>`
-  );
+  $(infoDiv)
+    .empty()
+    .append(
+      $("<h5/>").html("<b>Anime shortcuts</b>"),
+      ...formatShortcuts(shortcuts),
+      $("<br/><br/>")
+    );
 
   // Add event listener to the shortcuts
   $(infoDiv)
@@ -368,13 +389,16 @@ const toggleHighlight = (shortcut) => {
  * Convert a list of shortcuts into a formatted HTML string.
  *
  * @param {string[]} shortcuts
+ * @returns {JQuery<HTMLElement>[]}
  */
 const formatShortcuts = (shortcuts) => {
   let uniqueShortcuts = shortcuts.filter(onlyUnique);
   let highlightedShortcuts = JSON.parse(
     localStorage.getItem(LOCAL_STORAGE_KEY) || "[]"
   ).map(String);
-  let formattedString = "";
+
+  /** @type {JQuery<HTMLElement>[]} */
+  let shortcutEls = [];
 
   // Reorder the shortcuts so that the highlighted ones are first. Keep the order of the rest.
   uniqueShortcuts = uniqueShortcuts.sort(
@@ -383,15 +407,15 @@ const formatShortcuts = (shortcuts) => {
   );
   uniqueShortcuts.forEach((shortcut) => {
     let isHighlighted = highlightedShortcuts.includes(shortcut);
-    let formattedShortcut = shortcut.includes(" ")
-      ? shortcut.replaceAll(" ", "&nbsp")
-      : shortcut;
-    formattedString += /*html*/ `<code class="vivaceShortcut${
-      isHighlighted ? " vivaceHighlighted" : ""
-    }" data-shortcut="${shortcut}">${formattedShortcut}</code> `;
+    shortcutEls.push(
+      $(`<code/>`, {
+        class: `vivaceShortcut${isHighlighted ? " vivaceHighlighted" : ""}`,
+        data: { shortcut },
+      }).html(shortcut.replace(/ /g, "&nbsp;"))
+    );
   });
 
-  return formattedString;
+  return shortcutEls;
 };
 
 /**
@@ -470,6 +494,9 @@ const setupMetadata = () => {
       border-width: 0.5px;
       border-style: solid;
       border-color: white;
+      margin-right: 5px;
+      white-space: nowrap;
+      display: inline-block;
     }
 
     .vivaceHighlighted {
