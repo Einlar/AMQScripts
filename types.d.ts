@@ -30,6 +30,14 @@ declare class Quiz {
   players: Record<number, Player>;
 
   setupQuiz: (...args: any[]) => void;
+
+  quizDescription: {
+    /** Quiz UUID */
+    quizId: string;
+    roomName: string;
+    /** Date in ISO-8601 format */
+    startTime: string;
+  };
 }
 
 declare class QuizAnswerInput {
@@ -136,11 +144,20 @@ export type AnswerResultsPayload = {
   likedState: number;
 };
 
+export type PlayerAnswersPayload = {
+  answers: {
+    gamePlayerId: number;
+    pose: number;
+    answer: string;
+  }[];
+  progressBarState: any;
+};
+
 export type PlayerResults = {
   gamePlayerId: number;
   pose: number;
   level: number;
-  correct: false;
+  correct: boolean;
   score: number;
   listStatus: number;
   showScore: number;
@@ -203,6 +220,10 @@ export class ListenerClass {
   constructor(
     command: "Spectate Game",
     callback: (data: SpectateGamePayload) => void
+  );
+  constructor(
+    command: "player answers",
+    callback: (data: PlayerAnswersPayload) => void
   );
   fire: (payload: any) => void;
   bindListener: () => void;
