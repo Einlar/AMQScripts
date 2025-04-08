@@ -255,7 +255,7 @@ const setupHotPotato = () => {
       .forEach((m) => {
         const match = m.message.match(/Team (\d+): (.+) has the 🥔/);
         if (match) {
-          const team = parseInt(match[1]);
+          const team = Number(match[1]);
           const player = match[2];
           if (getMyTeam() === team) {
             gameChat.systemMessage(`Auto-passing 🥔 to ${player}`);
