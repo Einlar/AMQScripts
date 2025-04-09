@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ May the Melody Reach You
 // @namespace    http://tampermonkey.net/
-// @version      0.84
+// @version      0.85
 // @description  Show the Song/Artist matches for the current song when playing in a S/A room with the Ensemble Song Artist script enabled. Works even while spectating!
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -11,6 +11,11 @@
 // @grant        none
 // @icon         https://i.imgur.com/o8hOqsv.png
 // ==/UserScript==
+
+/**
+ * CHANGELOG
+ * - 0.85: When in doomed mode, you can now click on the symbols that appear in the chat to append them to the answer input. No more copy-pasting!
+ */
 
 const SOCKET_URL = "wss://amq.amogus.it/";
 const API_VERSION = "0.60";
@@ -351,6 +356,57 @@ const setup = () => {
       return originalWriteMessage.apply(this, arguments);
     };
   })(ChatBox.prototype.writeMessage);
+
+  /**
+   * Append a single character to the answer input
+   *
+   * @param {string} symbol
+   */
+  //@ts-ignore
+  window.appendToAnswer = (symbol) => {
+    // Limit to one character at most, to avoid security issues
+    symbol = symbol.trim().slice(0, 1);
+
+    let input = $("#qpAnswerInput");
+
+    // Override to the Song Input for the script host
+    const songInput = $("#songartist #qpAnswerInput");
+    if (songInput.length > 0 && songInput.is(":visible")) {
+      input = songInput;
+    }
+
+    const currentAnswer = input.val();
+    const newAnswer = currentAnswer + symbol;
+    input.val(newAnswer);
+    input.trigger("focus");
+    input.trigger("input");
+  };
+
+  // When doomed mode is active, make symbols clickable in the chat, by replacing the symbols after :skull:: with clickable elements
+  passChatMessage = (function (originalPassChatMessage) {
+    return function () {
+      /** @type {string} */
+      const msg = arguments[0];
+      if (msg.startsWith("💀: ")) {
+        const symbols = msg.slice(4).split(" ");
+        // Replace the symbols with clickable elements that call a function on click
+        const clickableSymbols = symbols.map((symbol) => {
+          return `<span class="esaClickableSymbol" onclick="appendToAnswer('${symbol}')">${symbol}</span>`;
+        });
+
+        // Prefix with the skull emoji, using the AMQ transform to convert it to an emoji
+        arguments[0] = ":skull:";
+        return (
+          originalPassChatMessage.apply(this, arguments) +
+          ": " +
+          clickableSymbols.join(" ")
+        );
+      }
+
+      // Pass through other messages
+      return originalPassChatMessage.apply(this, arguments);
+    };
+  })(passChatMessage);
 };
 
 /**
@@ -605,6 +661,16 @@ const setupMetadata = () => {
     .esaSongInfoItemScorePartial {
         color: #2e2c2c;
         background-color: #FFC107;
+    }
+
+    .esaClickableSymbol {
+        cursor: pointer;
+        background-color: #2e2c2c;
+        color:  #4CAF50;
+        border: 1px solid #4CAF50;
+        border-radius: 12px;
+        font-size: 14px;
+        padding: 4px 8px;
     }
     `);
 };

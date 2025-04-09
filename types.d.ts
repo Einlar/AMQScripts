@@ -288,6 +288,12 @@ declare global {
 
   var ChatBox: typeof ChatBoxClass;
   var hostModal: HostModal;
+
+  var passChatMessage: (
+    message: string,
+    emojis: any,
+    allowHtml: boolean
+  ) => string;
 }
 
 declare class GameChat {
