@@ -71,16 +71,38 @@ let autoPassTimeout = null;
  *
  * @type {number}
  */
-const maxPotatoPasses = Infinity;
+let maxPotatoPasses = Infinity;
+
+/**
+ * Record how many times the potato has been passed to each player for the current game.
+ * player name => number of passes
+ *
+ * @type {Record<string, number>}
+ */
+let potatoPassCount = {};
 
 /**
  * Click on an avatar to pass the potato to that player
  *
  * @param {string} playerName
+ * @param {boolean} [replaceAnswer = true] If true, show the pass in the answer input
  */
-const passPotato = (playerName) => {
-  sendAnswer(`🥔 to ${playerName}`, true);
+const passPotato = (playerName, replaceAnswer = true) => {
+  // If nobody has the potato, set the current haver instead
+  if (!potatoHaver) {
+    potatoHaver = playerName;
+
+    if (replaceAnswer) hasPotato();
+    if (chatTracking)
+      sendChatMessage(`Team ${getMyTeam()}: 🥔 to ${playerName}`, false);
+    return;
+  }
+
+  // Otherwise, pass the potato normally
   nextPotatoHaver = playerName;
+  if (replaceAnswer) sendAnswer(`🥔 to ${playerName}`, true);
+  if (chatTracking)
+    sendChatMessage(`Team ${getMyTeam()}: 🥔 to ${playerName}`, false);
 };
 
 /**
@@ -88,7 +110,9 @@ const passPotato = (playerName) => {
  */
 const hasPotato = () => {
   if (potatoHaver) sendAnswer(`(${potatoHaver} has 🥔)`);
-  else gameChat.systemMessage("No one has the 🥔");
+  else sendAnswer("(🥔 has been lost)");
+  //TODO Add here the counts for each player (except the one who has the potato) ordered relative to the player's position
+  //TODO If nobody has the potato, the next pass will immediately set the potato
 };
 
 /**
@@ -142,6 +166,7 @@ const sendChatMessage = (msg, teamMessage = false) => {
 /**
  * Get a dictionary of team number => player names for the current quiz.
  * Adapted from https://github.com/kempanator/amq-scripts/blob/main/amqMegaCommands.user.js
+ * Returns a dictionary of team number => player names for the current quiz.
  *
  * @returns {Record<number, string[]> | undefined}
  */
@@ -202,9 +227,13 @@ const getMyTeam = () =>
  * Display the script status as a system message
  */
 const showStatus = () => {
-  gameChat.systemMessage(
-    `Hot Potato tracking is ${potatoTracking ? "enabled" : "disabled"}`
-  );
+  let msg = `Hot Potato tracking is ${potatoTracking ? "enabled" : "disabled"}`;
+  if (potatoTracking) {
+    msg += ` (chat: ${chatTracking ? "on" : "off"}, limit: ${
+      maxPotatoPasses === Infinity ? "unlimited" : maxPotatoPasses
+    })`;
+  }
+  systemMessages([msg]);
 };
 
 /**
@@ -253,6 +282,9 @@ const setupHotPotato = () => {
         });
       });
 
+    // Reset the potato pass count for the current game
+    potatoPassCount = {};
+
     showStatus();
   };
 
@@ -295,23 +327,38 @@ const setupHotPotato = () => {
             });
         } else if (/^\/potato track/i.test(m.message)) {
           /** --- Potato tracking --- */
-          potatoTracking = !potatoTracking;
-          setTimeout(
-            () =>
-              gameChat.systemMessage(
-                `Potato tracking is now ${
-                  potatoTracking ? "enabled" : "disabled"
-                }`
-              ),
-            200
-          );
+          potatoTracking = true;
+
+          // Default values for the arguments
+          chatTracking = false;
+          maxPotatoPasses = Infinity;
+
+          // Check if the user wants to track the potato in chat
+          if (/chat/i.test(m.message)) {
+            chatTracking = true;
+          }
+
+          const limitMatch = m.message.match(/limit (\d+)/i);
+          if (limitMatch) {
+            const limit = Number(limitMatch[1]);
+            if (!isNaN(limit)) {
+              maxPotatoPasses = limit;
+            }
+          }
+
+          showStatus();
+        } else if (/^\/potato untrack/i.test(m.message)) {
+          /** --- Disable potato tracking --- */
+          potatoTracking = false;
+          showStatus();
         } else if (/^\/potato help$/i.test(m.message)) {
           /** --- Help message --- */
           systemMessages([
             "Hot Potato commands: /potato rules, /potato roll, /potato track",
             "/potato rules: Show a link to the rules",
             "/potato roll: Roll for a random player in each team to have the potato",
-            "/potato track: Enable/disable auto-tracking of the potato",
+            "/potato track: Enable auto-tracking of the potato",
+            "/potato untrack: Disable auto-tracking of the potato",
             "/potato track chat: additionally show the potato passes in chat for all to see",
             "/potato track limit <number>: limit the number of times the potato can be passed to the same player",
             "You can combine both options, e.g. /potato track chat limit 6",
@@ -350,9 +397,9 @@ const setupHotPotato = () => {
           if (toPlayer !== nextPotatoHaver) {
             gameChat.systemMessage(`Auto-passing 🥔 to ${toPlayer}`);
           }
-          nextPotatoHaver = toPlayer;
-          // Avoid replacing your answer
-          if (toPlayer !== selfName) passPotato(toPlayer);
+
+          // Pass the potato, but avoid replacing your answer when passing to yourself
+          passPotato(toPlayer, toPlayer !== potatoHaver);
         }, 500);
       } else if (autoPassTimeout) {
         // Skip auto-passing if the anime is changed to something else
@@ -397,6 +444,11 @@ const setupHotPotato = () => {
 
     potatoHaver = nextPotatoHaver;
     nextPotatoHaver = null;
+
+    // Count the pass
+    if (potatoHaver)
+      potatoPassCount[potatoHaver] = (potatoPassCount[potatoHaver] ?? 0) + 1;
+
     hasPotato();
   }).bindListener();
 
