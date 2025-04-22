@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hot Potato Gamemode
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Utilities for the hot potato gamemode. Alt+click on an avatar to pass the potato to them.
 //               Commands:
 //               - /potato rules: Send a pastebin link with the rules
@@ -19,6 +19,10 @@
 
 /**
  * CHANGELOG
+ *
+ * v1.3
+ * - Fixed a bug that prevented /potato roll from working properly when used in lobby.
+ * - Fixed an interaction with the auto-key script that lead to the "auto-passing" message being spammed for the script host.
  *
  * v1.2
  * - Make the script work also on AMQ subdomains (since at the moment the main AMQ domain is not working).
