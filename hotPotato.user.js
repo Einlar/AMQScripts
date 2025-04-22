@@ -4,6 +4,7 @@
 // @version      1.3
 // @description  Utilities for the hot potato gamemode. Alt+click on an avatar to pass the potato to them.
 //               Commands:
+//               - /potato help: Show the available commands
 //               - /potato rules: Send a pastebin link with the rules
 //               - /potato roll: Randomly assign a player of each team to have the potato before starting a game
 //               - /potato track: Enable/disable auto-tracking of the potato (experimental). If enabled, at the start of each round, the script will autothrow a message showing who currently has the potato.
@@ -23,6 +24,7 @@
  * v1.3
  * - Fixed a bug that prevented /potato roll from working properly when used in lobby.
  * - Fixed an interaction with the auto-key script that lead to the "auto-passing" message being spammed for the script host.
+ * - Added a "/potato help" command to show the available commands and what they do.
  *
  * v1.2
  * - Make the script work also on AMQ subdomains (since at the moment the main AMQ domain is not working).
@@ -36,6 +38,12 @@
  * Enable/disable potato tracking
  */
 let potatoTracking = false;
+
+/**
+ * If true, potato passes will be sent to the chat for everyone to see.
+ * Otherwise, only the player who used the "/potato track" command will see them.
+ */
+let chatTracking = false;
 
 /**
  * Track the current potato haver (for the user's team)
@@ -57,6 +65,13 @@ let nextPotatoHaver = null;
  * @type {number | null}
  */
 let autoPassTimeout = null;
+
+/**
+ * Maximum number of times during a game the potato can be passed to the same player.
+ *
+ * @type {number}
+ */
+const maxPotatoPasses = Infinity;
 
 /**
  * Click on an avatar to pass the potato to that player
@@ -193,6 +208,26 @@ const showStatus = () => {
 };
 
 /**
+ * Print a sequence of system messages with a delay between each one
+ *
+ * @param {string[]} messages
+ * @param {number} [delay = 200]
+ * @returns {Promise<void>}
+ */
+const systemMessages = async (messages, delay = 200) => {
+  for (const message of messages) {
+    /** @type {Promise<void>} */
+    const sendPromise = new Promise((resolve) => {
+      setTimeout(() => {
+        gameChat.systemMessage(message);
+        resolve();
+      }, delay);
+    });
+    await sendPromise;
+  }
+};
+
+/**
  * Setup listeners
  */
 const setupHotPotato = () => {
@@ -258,7 +293,7 @@ const setupHotPotato = () => {
                 );
               }, (i + 1) * 200);
             });
-        } else if (/^\/potato track$/i.test(m.message)) {
+        } else if (/^\/potato track/i.test(m.message)) {
           /** --- Potato tracking --- */
           potatoTracking = !potatoTracking;
           setTimeout(
@@ -270,6 +305,17 @@ const setupHotPotato = () => {
               ),
             200
           );
+        } else if (/^\/potato help$/i.test(m.message)) {
+          /** --- Help message --- */
+          systemMessages([
+            "Hot Potato commands: /potato rules, /potato roll, /potato track",
+            "/potato rules: Show a link to the rules",
+            "/potato roll: Roll for a random player in each team to have the potato",
+            "/potato track: Enable/disable auto-tracking of the potato",
+            "/potato track chat: additionally show the potato passes in chat for all to see",
+            "/potato track limit <number>: limit the number of times the potato can be passed to the same player",
+            "You can combine both options, e.g. /potato track chat limit 6",
+          ]);
         }
       });
 
