@@ -302,7 +302,11 @@ const setupHotPotato = () => {
       );
 
       if (player) {
-        gameChat.systemMessage(`Auto-passing 🥔 to ${toPlayer}`);
+        if (toPlayer !== potatoHaver) {
+          // Avoid spamming
+          gameChat.systemMessage(`Auto-passing 🥔 to ${toPlayer}`);
+        }
+
         potatoHaver = toPlayer;
         nextPotatoHaver = toPlayer;
 
