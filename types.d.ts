@@ -19,6 +19,7 @@ declare class Quiz {
   answerInput: QuizAnswerInput;
 
   gameMode: Gamemode;
+  teamMode: boolean;
 
   skipController: {
     voteSkip: () => void;
@@ -78,18 +79,33 @@ export type Player = {
   };
 };
 
+export type LobbyPlayer = {
+  name: string;
+  host: boolean;
+  ready: boolean;
+  avatarInfo: any;
+  gamePlayerId: number;
+  level: number;
+  lobbySlot: {
+    $TEAM_DISPLAY_TEXT: JQuery<HTMLHeadingElement>;
+  };
+};
+
 declare class Lobby {
   /**
    * Whether the user is currently in the lobby
    */
   inLobby: boolean;
 
-  settings: {
-    gamemode: Gamemode;
-  };
+  settings: GameSettings;
 
-  players: Record<number, Player>;
+  players: Record<number, LobbyPlayer>;
 }
+
+export type GameSettings = {
+  gamemode: Gamemode;
+  teamSize: number;
+};
 
 export type Gamemode = "Ranked" | "Multiplayer" | "Solo";
 

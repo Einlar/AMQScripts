@@ -124,19 +124,40 @@ const sendChatMessage = (msg, teamMessage = false) => {
  * Get a dictionary of team number => player names for the current quiz.
  * Adapted from https://github.com/kempanator/amq-scripts/blob/main/amqMegaCommands.user.js
  *
- * @returns {Record<number, string[]>}
+ * @returns {Record<number, string[]> | undefined}
  */
 const getTeamDictionary = () => {
-  if (!quiz.inQuiz && !lobby.inLobby) return {};
-  const players = quiz.inQuiz ? quiz.players : lobby.players;
+  if (quiz.inQuiz) {
+    if (!quiz.teamMode) return undefined;
+    return Object.values(quiz.players).reduce((acc, player) => {
+      // Coalesce missing team numbers to 0
+      const teamNumber = player.teamNumber ?? 0;
+      if (!acc[teamNumber]) acc[teamNumber] = [];
+      acc[teamNumber].push(player.name);
+      return acc;
+    }, /** @type {Record<number, string[]>} */ ({}));
+  }
 
-  return Object.values(players).reduce((acc, player) => {
-    // Coalesce missing team numbers to 0
-    const teamNumber = player.teamNumber ?? 0;
-    if (!acc[teamNumber]) acc[teamNumber] = [];
-    acc[teamNumber].push(player.name);
-    return acc;
-  }, /** @type {Record<number, string[]>} */ ({}));
+  if (lobby.inLobby) {
+    if (lobby.settings.teamSize === 1) return undefined;
+
+    /** @type {Record<number, string[]>} */
+    const teamDictionary = {};
+    for (const player of Object.values(lobby.players)) {
+      const teamNumber = Number(
+        player.lobbySlot.$TEAM_DISPLAY_TEXT.text().trim()
+      );
+
+      if (isNaN(teamNumber)) return undefined; // Some player has not selected a team yet
+
+      if (!teamDictionary[teamNumber]) teamDictionary[teamNumber] = [];
+      teamDictionary[teamNumber].push(player.name);
+    }
+
+    return teamDictionary;
+  }
+
+  return undefined;
 };
 
 /**
@@ -210,8 +231,7 @@ const setupHotPotato = () => {
         } else if (/^\/potato roll$/i.test(m.message)) {
           /** --- Potato starting rolls --- */
           const teams = getTeamDictionary();
-          if (Object.keys(teams).length === 0)
-            return sendChatMessage("No teams found");
+          if (!teams) return sendChatMessage("Not all players are in a team");
 
           Object.entries(teams)
             // When in team chat, only roll for the current team
