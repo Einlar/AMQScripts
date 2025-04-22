@@ -300,7 +300,10 @@ const setupHotPotato = () => {
           if (nextPotatoHaver) return;
 
           const toPlayer = quiz.players[answer.gamePlayerId].name;
-          gameChat.systemMessage(`Auto-passing 🥔 to ${toPlayer}`);
+
+          if (toPlayer !== nextPotatoHaver) {
+            gameChat.systemMessage(`Auto-passing 🥔 to ${toPlayer}`);
+          }
           nextPotatoHaver = toPlayer;
           // Avoid replacing your answer
           if (toPlayer !== selfName) passPotato(toPlayer);
