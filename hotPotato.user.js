@@ -82,12 +82,34 @@ let maxPotatoPasses = Infinity;
 let potatoPassCount = {};
 
 /**
+ * Count a potato pass to a player.
+ *
+ * @param {string} playerName
+ */
+const countPotatoPass = (playerName) => {
+  potatoPassCount[playerName] = (potatoPassCount[playerName] ?? 0) + 1;
+};
+
+/**
+ * Check if the potato can be passed to a player given the current limit and counts.
+ *
+ * @param {string} playerName
+ * @returns {boolean}
+ */
+const canGetPotato = (playerName) => {
+  if (potatoPassCount[playerName] >= maxPotatoPasses) return false;
+  return true;
+};
+
+/**
  * Click on an avatar to pass the potato to that player
  *
  * @param {string} playerName
  * @param {boolean} [replaceAnswer = true] If true, show the pass in the answer input
  */
 const passPotato = (playerName, replaceAnswer = true) => {
+  if (!canGetPotato(playerName)) return;
+
   // If nobody has the potato, set the current haver instead
   if (!potatoHaver) {
     potatoHaver = playerName;
@@ -95,6 +117,8 @@ const passPotato = (playerName, replaceAnswer = true) => {
     if (replaceAnswer) hasPotato();
     if (chatTracking)
       sendChatMessage(`Team ${getMyTeam()}: 🥔 to ${playerName}`, false);
+
+    countPotatoPass(potatoHaver);
     return;
   }
 
@@ -445,9 +469,7 @@ const setupHotPotato = () => {
     potatoHaver = nextPotatoHaver;
     nextPotatoHaver = null;
 
-    // Count the pass
-    if (potatoHaver)
-      potatoPassCount[potatoHaver] = (potatoPassCount[potatoHaver] ?? 0) + 1;
+    if (potatoHaver) countPotatoPass(potatoHaver);
 
     hasPotato();
   }).bindListener();
