@@ -20,6 +20,7 @@
 // @match        https://*.animemusicquiz.com/*
 // @downloadURL  https://github.com/Einlar/AMQScripts/raw/main/hotPotato.user.js
 // @updateURL    https://github.com/Einlar/AMQScripts/raw/main/hotPotato.user.js
+// @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
 // @grant        none
 // ==/UserScript==
 
@@ -113,27 +114,35 @@ const canGetPotato = (playerName) => {
  *
  * @param {string} playerName
  * @param {boolean} [replaceAnswer = true] If true, show the pass in the answer input
+ * @returns {boolean} True if the potato was passed, false otherwise
  */
 const passPotato = (playerName, replaceAnswer = true) => {
-  if (!canGetPotato(playerName)) return;
+  if (!canGetPotato(playerName)) return false;
 
   // If nobody has the potato, set the current haver instead
   if (!potatoHaver) {
     potatoHaver = playerName;
     countPotatoPass(potatoHaver);
 
-    if (replaceAnswer) hasPotato();
+    if (replaceAnswer) hasPotato(potatoHaver);
     if (chatTracking)
-      sendChatMessage(`Team ${getMyTeam()}: ${formatPotatoStatus()}`, false);
+      sendChatMessage(
+        `Team ${getMyTeam()}: ${formatPotatoStatus(potatoHaver)}`,
+        false
+      );
 
-    return;
+    return true;
   }
 
   // Otherwise, pass the potato normally
   nextPotatoHaver = playerName;
   if (replaceAnswer) sendAnswer(`🥔 to ${playerName}`, true);
   if (chatTracking)
-    sendChatMessage(`Team ${getMyTeam()}: 🥔 to ${playerName}`, false);
+    sendChatMessage(
+      `Team ${getMyTeam()}: ${formatPotatoStatus(nextPotatoHaver)}`,
+      false
+    );
+  return true;
 };
 
 /**
@@ -164,21 +173,24 @@ const formatPotatoPassCount = (playerName) => {
 /**
  * Format a message showing who has the potato and how many passes each player has.
  * Example: "🥔Player | 0 | 1 | 2"
+ *
+ * @param {string} [haver]
  */
-const formatPotatoStatus = () => {
+const formatPotatoStatus = (haver) => {
   const players = getCurrentTeamPlayers();
   return players
-    .map((p) => (potatoHaver === p ? `🥔${p}` : formatPotatoPassCount(p)))
+    .map((p) => (haver === p ? `🥔${p}` : formatPotatoPassCount(p)))
     .join(" | ");
 };
 
 /**
  * Show who currently has the potato
+ *
+ * @param {string | null} haver
  */
-const hasPotato = () => {
-  if (!potatoHaver) return sendAnswer("(🥔 has been lost)");
-
-  sendAnswer(formatPotatoStatus());
+const hasPotato = (haver) => {
+  if (!haver) return sendAnswer("(🥔 has been lost)");
+  sendAnswer(formatPotatoStatus(haver));
 };
 
 /**
@@ -465,7 +477,6 @@ const setupHotPotato = () => {
 
           // Pass just once
           if (toPlayer !== nextPotatoHaver) {
-            gameChat.systemMessage(`Auto-passing 🥔 to ${toPlayer}`);
             passPotato(toPlayer, toPlayer !== selfName); // Avoid replacing own answer
           }
         }, 500);
@@ -495,12 +506,10 @@ const setupHotPotato = () => {
           gameChat.systemMessage(`Auto-passing 🥔 to ${toPlayer}`);
         }
 
-        potatoHaver = toPlayer;
-        passPotato(toPlayer, false);
+        const passed = passPotato(toPlayer, false);
 
-        // Update the potato message (but only if you are not answering)
-        if (getCurrentAnswer()?.includes("🥔")) {
-          hasPotato();
+        if (passed && getCurrentAnswer()?.includes("🥔")) {
+          hasPotato(toPlayer);
         }
       }
     }
@@ -518,7 +527,7 @@ const setupHotPotato = () => {
     }
 
     nextPotatoHaver = null;
-    hasPotato();
+    hasPotato(potatoHaver);
   }).bindListener();
 
   // Reset potato rolls when the quiz ends
@@ -534,6 +543,30 @@ const setupHotPotato = () => {
 let loadInterval = setInterval(() => {
   if ($("#loadingScreen").hasClass("hidden")) {
     clearInterval(loadInterval);
+    setupMetadata();
     setupHotPotato();
   }
 }, 500);
+
+const setupMetadata = () => {
+  AMQ_addScriptData({
+    name: "Hot Potato Gamemode",
+    author: "Einlar",
+    version: "1.3",
+    link: "https://github.com/Einlar/AMQScripts/raw/main/hotPotato.user.js",
+    description: `<p>Utilities for the <a href='https://pastebin.com/qdr4g6Jp'>hot potato gamemode</a></p>
+      <p>Alt+click on an avatar to pass the potato to them.</p>
+      <p>Commands:</p>
+      <p>/potato help: Show the available commands</p>
+      <p>/potato rules: Send a pastebin link with the rules</p>
+      <p>/potato roll: Randomly assign a player of each team to have the potato before starting a game</p>
+      <p>/potato track: Enable auto-tracking of the potato. If enabled, at the start of each round, the script will autothrow a message showing who currently has the potato,
+                                and how many times the potato has been passed to each player. Something like: "🥔Player | 0 | 1 | 2".
+                                Note: You will need to manually tell the script who has the potato using ALT+click.
+                                If exactly one player gives a valid answer, and you have not manually passed the potato, the script will automatically do it for you.</p>
+      <p>/potato untrack: Disable auto-tracking of the potato</p>
+      <p>/potato track chat: additionally show the potato passes in chat for all to see</p>
+      <p>/potato track limit <number>: limit the number of times the potato can be passed to the same player. Players who reach the limit will be marked with a ❌️.</p>
+      <p>/potato track chat limit <number>: combine both the above options</p>`,
+  });
+};
