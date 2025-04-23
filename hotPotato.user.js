@@ -117,7 +117,7 @@ const passPotato = (playerName, replaceAnswer = true) => {
 
     if (replaceAnswer) hasPotato();
     if (chatTracking)
-      sendChatMessage(`Team ${getMyTeam()}: 🥔 to ${playerName}`, false);
+      sendChatMessage(`Team ${getMyTeam()}: ${formatPotatoStatus()}`, false);
 
     return;
   }
@@ -155,16 +155,23 @@ const formatPotatoPassCount = (playerName) => {
 };
 
 /**
+ * Format a message showing who has the potato and how many passes each player has.
+ * Example: "🥔Player | 0 | 1 | 2"
+ */
+const formatPotatoStatus = () => {
+  const players = getCurrentTeamPlayers();
+  return players
+    .map((p) => (potatoHaver === p ? `🥔${p}` : formatPotatoPassCount(p)))
+    .join(" | ");
+};
+
+/**
  * Show who currently has the potato
  */
 const hasPotato = () => {
   if (!potatoHaver) return sendAnswer("(🥔 has been lost)");
 
-  const players = getCurrentTeamPlayers();
-  const msg = players
-    .map((p) => (potatoHaver === p ? `🥔${p}` : formatPotatoPassCount(p)))
-    .join(" | ");
-  sendAnswer(msg);
+  sendAnswer(formatPotatoStatus());
 };
 
 /**
