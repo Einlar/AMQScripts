@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hot Potato Gamemode
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.31
 // @description  Utilities for the hot potato gamemode. Alt+click on an avatar to pass the potato to them.
 //               Commands:
 //               - /potato help: Show the available commands
@@ -26,6 +26,9 @@
 
 /**
  * CHANGELOG
+ *
+ * v1.31
+ * - Fixed a bug when passing from a player who isn't tracking the potato.
  *
  * v1.3
  * - The "/potato track" command will also track how many times the potato has been passed to each player.
@@ -120,7 +123,7 @@ const passPotato = (playerName, replaceAnswer = true) => {
   if (!canGetPotato(playerName)) return false;
 
   // If nobody has the potato, set the current haver instead
-  if (!potatoHaver) {
+  if (potatoTracking && !potatoHaver) {
     potatoHaver = playerName;
     countPotatoPass(potatoHaver);
 
