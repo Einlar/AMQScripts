@@ -113,12 +113,12 @@ const passPotato = (playerName, replaceAnswer = true) => {
   // If nobody has the potato, set the current haver instead
   if (!potatoHaver) {
     potatoHaver = playerName;
+    countPotatoPass(potatoHaver);
 
     if (replaceAnswer) hasPotato();
     if (chatTracking)
       sendChatMessage(`Team ${getMyTeam()}: 🥔 to ${playerName}`, false);
 
-    countPotatoPass(potatoHaver);
     return;
   }
 
@@ -130,13 +130,29 @@ const passPotato = (playerName, replaceAnswer = true) => {
 };
 
 /**
+ * Get the list of player nmaes in the current team, sorted by their avatar position
+ * @returns {string[]}
+ */
+const getCurrentTeamPlayers = () => {
+  if (!quiz.inQuiz) return [];
+  const myTeam = getMyTeam();
+  const players = Object.values(quiz.players)
+    .filter((p) => p.teamNumber === myTeam)
+    .sort((a, b) => a.startPositionSlot - b.startPositionSlot);
+  return players.map((p) => p.name);
+};
+
+/**
  * Show who currently has the potato
  */
 const hasPotato = () => {
-  if (potatoHaver) sendAnswer(`(${potatoHaver} has 🥔)`);
-  else sendAnswer("(🥔 has been lost)");
-  //TODO Add here the counts for each player (except the one who has the potato) ordered relative to the player's position
-  //TODO If nobody has the potato, the next pass will immediately set the potato
+  if (!potatoHaver) return sendAnswer("(🥔 has been lost)");
+
+  const players = getCurrentTeamPlayers();
+  const msg = players
+    .map((p) => (potatoHaver === p ? `🥔${p}` : potatoPassCount[p] ?? 0))
+    .join(" | ");
+  sendAnswer(msg);
 };
 
 /**
@@ -254,7 +270,7 @@ const showStatus = () => {
   let msg = `Hot Potato tracking is ${potatoTracking ? "enabled" : "disabled"}`;
   if (potatoTracking) {
     msg += ` (chat: ${chatTracking ? "on" : "off"}, limit: ${
-      maxPotatoPasses === Infinity ? "unlimited" : maxPotatoPasses
+      maxPotatoPasses === Infinity ? "none" : maxPotatoPasses
     })`;
   }
   systemMessages([msg]);
@@ -418,12 +434,14 @@ const setupHotPotato = () => {
 
           const toPlayer = quiz.players[answer.gamePlayerId].name;
 
+          // Skip if passing to the current haver
+          if (toPlayer === potatoHaver) return;
+
+          // Pass just once
           if (toPlayer !== nextPotatoHaver) {
             gameChat.systemMessage(`Auto-passing 🥔 to ${toPlayer}`);
+            passPotato(toPlayer, toPlayer !== selfName); // Avoid replacing own answer
           }
-
-          // Pass the potato, but avoid replacing your answer when passing to yourself
-          passPotato(toPlayer, toPlayer !== potatoHaver);
         }, 500);
       } else if (autoPassTimeout) {
         // Skip auto-passing if the anime is changed to something else
@@ -452,7 +470,7 @@ const setupHotPotato = () => {
         }
 
         potatoHaver = toPlayer;
-        nextPotatoHaver = toPlayer;
+        passPotato(toPlayer, false);
 
         // Update the potato message (but only if you are not answering)
         if (getCurrentAnswer()?.includes("🥔")) {
@@ -466,11 +484,14 @@ const setupHotPotato = () => {
   new Listener("play next song", () => {
     if (!potatoTracking) return;
 
-    potatoHaver = nextPotatoHaver;
+    // Count a pass if the potato has a new target
+    // Otherwise, the potato will stay with the current player
+    if (nextPotatoHaver) {
+      potatoHaver = nextPotatoHaver;
+      countPotatoPass(potatoHaver);
+    }
+
     nextPotatoHaver = null;
-
-    if (potatoHaver) countPotatoPass(potatoHaver);
-
     hasPotato();
   }).bindListener();
 

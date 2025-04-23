@@ -77,6 +77,7 @@ export type Player = {
     _answer: string | null;
     $body: JQuery<HTMLDivElement>;
   };
+  startPositionSlot: number;
 };
 
 export type LobbyPlayer = {
