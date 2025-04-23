@@ -143,6 +143,18 @@ const getCurrentTeamPlayers = () => {
 };
 
 /**
+ * Format the count of potato passes for a player
+ *
+ * @param {string} playerName
+ */
+const formatPotatoPassCount = (playerName) => {
+  let count = potatoPassCount[playerName] ?? 0;
+  let msg = String(count);
+  if (count >= maxPotatoPasses) msg += `❌️`;
+  return msg;
+};
+
+/**
  * Show who currently has the potato
  */
 const hasPotato = () => {
@@ -150,7 +162,7 @@ const hasPotato = () => {
 
   const players = getCurrentTeamPlayers();
   const msg = players
-    .map((p) => (potatoHaver === p ? `🥔${p}` : potatoPassCount[p] ?? 0))
+    .map((p) => (potatoHaver === p ? `🥔${p}` : formatPotatoPassCount(p)))
     .join(" | ");
   sendAnswer(msg);
 };
