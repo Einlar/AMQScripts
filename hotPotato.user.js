@@ -7,9 +7,14 @@
 //               - /potato help: Show the available commands
 //               - /potato rules: Send a pastebin link with the rules
 //               - /potato roll: Randomly assign a player of each team to have the potato before starting a game
-//               - /potato track: Enable/disable auto-tracking of the potato (experimental). If enabled, at the start of each round, the script will autothrow a message showing who currently has the potato.
-//                                You will need to manually tell the script who has the potato using ALT+click. If exactly one player gives a valid answer, and you have not manually passed the potato,
-//                                the script will automatically do it for you.
+//               - /potato track: Enable auto-tracking of the potato. If enabled, at the start of each round, the script will autothrow a message showing who currently has the potato,
+//                                and how many times the potato has been passed to each player. Something like: "🥔Player | 0 | 1 | 2".
+//                                Note: You will need to manually tell the script who has the potato using ALT+click.
+//                                If exactly one player gives a valid answer, and you have not manually passed the potato, the script will automatically do it for you.
+//               - /potato untrack: Disable auto-tracking of the potato
+//               - /potato track chat: additionally show the potato passes in chat for all to see
+//               - /potato track limit <number>: limit the number of times the potato can be passed to the same player. Players who reach the limit will be marked with a ❌️.
+//               - /potato track chat limit <number>: combine both the above options
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
 // @match        https://*.animemusicquiz.com/*
@@ -22,9 +27,11 @@
  * CHANGELOG
  *
  * v1.3
+ * - The "/potato track" command will also track how many times the potato has been passed to each player.
+ * - Added additional options to the "/potato track" command: "/potato track chat" to show the potato passes in chat for all to see, and "/potato track limit <number>" to limit the number of times the potato can be passed to the same player.
+ * - Added a "/potato help" command to show the available commands and what they do.
  * - Fixed a bug that prevented /potato roll from working properly when used in lobby.
  * - Fixed an interaction with the auto-key script that lead to the "auto-passing" message being spammed for the script host.
- * - Added a "/potato help" command to show the available commands and what they do.
  *
  * v1.2
  * - Make the script work also on AMQ subdomains (since at the moment the main AMQ domain is not working).
