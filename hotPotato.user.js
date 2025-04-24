@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hot Potato Gamemode
 // @namespace    http://tampermonkey.net/
-// @version      1.31
+// @version      1.32
 // @description  Utilities for the hot potato gamemode. Alt+click on an avatar to pass the potato to them.
 //               Commands:
 //               - /potato help: Show the available commands
@@ -12,6 +12,7 @@
 //                                Note: You will need to manually tell the script who has the potato using ALT+click.
 //                                If exactly one player gives a valid answer, and you have not manually passed the potato, the script will automatically do it for you.
 //               - /potato untrack: Disable auto-tracking of the potato
+//               - /potato script: Show a link to the script
 //               - /potato track chat: additionally show the potato passes in chat for all to see
 //               - /potato track limit <number>: limit the number of times the potato can be passed to the same player. Players who reach the limit will be marked with a ❌️.
 //               - /potato track chat limit <number>: combine both the above options
@@ -26,6 +27,11 @@
 
 /**
  * CHANGELOG
+ *
+ * v1.32
+ * - Added a "/potato script" command to show a link to download the script.
+ * - If "/potato roll" is called when the quiz is started, it will update the potato haver immediately if none was set.
+ * - Fixed "/potato roll" not being tracked by other players tracking the potato when used in lobby.
  *
  * v1.31
  * - Fixed a bug when passing from a player who isn't tracking the potato.
@@ -154,9 +160,9 @@ const passPotato = (playerName, replaceAnswer = true) => {
  */
 const getCurrentTeamPlayers = () => {
   if (!quiz.inQuiz) return [];
-  const myTeam = getMyTeam();
+  const myTeamPlayers = getMyTeamPlayers() ?? [];
   const players = Object.values(quiz.players)
-    .filter((p) => p.teamNumber === myTeam)
+    .filter((p) => myTeamPlayers.includes(p.name))
     .sort((a, b) => a.startPositionSlot - b.startPositionSlot);
   return players.map((p) => p.name);
 };
@@ -301,8 +307,28 @@ const isValidAnime = (animeName) => {
  *
  * @returns {number | null}
  */
-const getMyTeam = () =>
-  Object.values(quiz.players).find((p) => p.isSelf)?.teamNumber ?? null;
+const getMyTeam = () => {
+  const teams = getTeamDictionary();
+  if (!teams) return null;
+  const myTeam = Object.entries(teams)
+    .find(([_, players]) => players.includes(selfName))
+    ?.shift();
+  if (myTeam) return Number(myTeam);
+  return null;
+};
+
+/**
+ * Retrieve all the players in your current team
+ *
+ * @returns {string[] | null}
+ */
+const getMyTeamPlayers = () => {
+  const teams = getTeamDictionary();
+  if (!teams) return null;
+  return (
+    Object.values(teams).find((players) => players.includes(selfName)) ?? null
+  );
+};
 
 /**
  * Display the script status as a system message
@@ -349,12 +375,12 @@ const setupHotPotato = () => {
     // Skip setup if in ranked
     if (isRanked()) return;
 
-    const myTeam = getMyTeam();
+    const myTeamPlayers = getMyTeamPlayers() ?? [];
 
     // Alt+click to pass the potato
     Object.values(quiz.players)
       // Can only pass to teammates
-      .filter((p) => p.teamNumber === myTeam)
+      .filter((p) => myTeamPlayers.includes(p.name))
       .forEach((player) => {
         player.avatarSlot.$body.on("click", (event) => {
           if (event.altKey) {
@@ -396,7 +422,10 @@ const setupHotPotato = () => {
                 players[Math.floor(Math.random() * players.length)];
 
               // Set the next potato haver
-              if (players.includes(selfName)) nextPotatoHaver = potatoPlayer;
+              if (potatoTracking && players.includes(selfName)) {
+                nextPotatoHaver = potatoPlayer;
+                if (quiz.inQuiz && !potatoHaver) passPotato(potatoPlayer); // Immediately set the potato if it wasn't set
+              }
 
               // When sending multiple messages, send them with a small delay between each other
               setTimeout(() => {
@@ -432,6 +461,11 @@ const setupHotPotato = () => {
           /** --- Disable potato tracking --- */
           potatoTracking = false;
           showStatus();
+        } else if (/^\/potato script$/i.test(m.message)) {
+          /** --- Show a link to the script --- */
+          sendChatMessage(
+            "Hot Potato script: https://github.com/Einlar/AMQScripts/raw/main/hotPotato.user.js"
+          );
         } else if (/^\/potato help$/i.test(m.message)) {
           /** --- Help message --- */
           systemMessages([
@@ -440,6 +474,7 @@ const setupHotPotato = () => {
             "/potato roll: Roll for a random player in each team to have the potato",
             "/potato track: Enable auto-tracking of the potato",
             "/potato untrack: Disable auto-tracking of the potato",
+            "/potato script: Show a link to download the script",
             "/potato track chat: additionally show the potato passes in chat for all to see",
             "/potato track limit <number>: limit the number of times the potato can be passed to the same player",
             "You can combine both options, e.g. /potato track chat limit 6",
@@ -447,20 +482,24 @@ const setupHotPotato = () => {
         }
       });
 
+    const myTeamPlayers = getMyTeamPlayers() ?? [];
+
     // Parse potato rolls made by other players
-    chat.messages
-      .filter((m) => m.sender !== selfName)
-      .forEach((m) => {
-        const match = m.message.match(/Team (\d+): (.+) has the 🥔/);
-        if (match) {
-          const team = Number(match[1]);
-          const player = match[2];
-          if (getMyTeam() === team) {
-            gameChat.systemMessage(`Auto-passing 🥔 to ${player}`);
-            nextPotatoHaver = player;
+    if (potatoTracking) {
+      chat.messages
+        .filter((m) => m.sender !== selfName)
+        .forEach((m) => {
+          const match = m.message.match(/Team \d+: (.+) has the 🥔/);
+          if (match) {
+            const player = match[1];
+            if (myTeamPlayers.includes(player)) {
+              gameChat.systemMessage(`Auto-passing 🥔 to ${player}`);
+              nextPotatoHaver = player;
+              if (quiz.inQuiz && !potatoHaver) passPotato(player);
+            }
           }
-        }
-      });
+        });
+    }
   }).bindListener();
 
   // Auto-pass the potato to the first player who inputs a valid anime name (if the potato has not been passed yet)
@@ -498,12 +537,12 @@ const setupHotPotato = () => {
       const toPlayer = match[1];
 
       // Check if there is a team member with that name
-      const myTeam = getMyTeam();
       const player = Object.values(quiz.players).find(
-        (p) => p.name === toPlayer && p.teamNumber === myTeam
+        (p) => p.name === toPlayer
       );
 
-      if (player) {
+      const myTeamPlayers = getMyTeamPlayers();
+      if (player && myTeamPlayers && myTeamPlayers.includes(toPlayer)) {
         if (toPlayer !== potatoHaver) {
           // Avoid spamming
           gameChat.systemMessage(`Auto-passing 🥔 to ${toPlayer}`);
@@ -560,16 +599,38 @@ const setupMetadata = () => {
     description: `<p>Utilities for the <a href='https://pastebin.com/qdr4g6Jp'>hot potato gamemode</a></p>
       <p>Alt+click on an avatar to pass the potato to them.</p>
       <p>Commands:</p>
-      <p>/potato help: Show the available commands</p>
-      <p>/potato rules: Send a pastebin link with the rules</p>
-      <p>/potato roll: Randomly assign a player of each team to have the potato before starting a game</p>
-      <p>/potato track: Enable auto-tracking of the potato. If enabled, at the start of each round, the script will autothrow a message showing who currently has the potato,
+      <ul>
+        <li>
+          <p><code>/potato help</code>: Show the available commands</p>
+        </li>
+        <li>
+          <p><code>/potato rules</code>: Send a pastebin link with the rules</p>
+        </li>
+        <li>
+        <li>
+          <p><code>/potato roll</code>: Randomly assign a player of each team to have the potato before starting a game</p>
+        </li>
+        <li>
+          <p><code>/potato track</code>: Enable auto-tracking of the potato. If enabled, at the start of each round, the script will autothrow a message showing who currently has the potato,
                                 and how many times the potato has been passed to each player. Something like: "🥔Player | 0 | 1 | 2".
                                 Note: You will need to manually tell the script who has the potato using ALT+click.
                                 If exactly one player gives a valid answer, and you have not manually passed the potato, the script will automatically do it for you.</p>
-      <p>/potato untrack: Disable auto-tracking of the potato</p>
-      <p>/potato track chat: additionally show the potato passes in chat for all to see</p>
-      <p>/potato track limit <number>: limit the number of times the potato can be passed to the same player. Players who reach the limit will be marked with a ❌️.</p>
-      <p>/potato track chat limit <number>: combine both the above options</p>`,
+        </li>
+        <li>
+          <p><code>/potato untrack</code>: Disable auto-tracking of the potato</p>
+        </li>
+        <li>
+          <p><code>/potato script</code>: Show a link to the script</p>
+        </li>
+        <li>
+          <p><code>/potato track chat</code>: additionally show the potato passes in chat for all to see</p>
+        </li>
+        <li>
+          <p><code>/potato track limit <number></code>: limit the number of times the potato can be passed to the same player. Players who reach the limit will be marked with a ❌️.</p>
+        </li>
+        <li>
+          <p><code>/potato track chat limit <number></code>: combine both the above options</p>
+        </li>
+      </ul>`,
   });
 };
