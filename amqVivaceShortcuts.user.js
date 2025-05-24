@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         AMQ Vivace! Shortcuts
+// @name         AMQ Vivace! Optimized Shortcuts
 // @namespace    http://tampermonkey.net/
 // @version      1.6
-// @description  Displays at least 3 of the shortest shortcuts for an anime after guessing phase, defined as the shortest substrings of length 10 or less for which the target anime (or any of its alt names) is the first suggestion in the dropdown list (or one of the top ones, in case it is not possible to do better). Adapted from https://github.com/tutti-amq/amq-scripts/blob/main/animeShortcuts.user.js All shortcuts with the smallest length are displayed. Click on a shortcut to highlight it and move it to the front of the list.
-// @author       Einlar, Tutti
+// @description  Displays at least ~3~ 10 of the shortest shortcuts for an anime after guessing phase, defined as the shortest substrings of length 10 or less for which the target anime (or any of its alt names) is a suggestion in the dropdown list (a 1 character penalty represented by "↓" is applied for every position below the top that the name associated with the shortcut appears). Adapted from https://github.com/tutti-amq/amq-scripts/blob/main/animeShortcuts.user.js All shortcuts (that aren't longer version of shorter shortcuts) with the smallest length are displayed. Click on a shortcut to highlight it and move it to the front of the list.
+// @author       Einlar, Tutti, (modified by kombofuud)
 // @match        https://animemusicquiz.com/*
 // @match        https://*.animemusicquiz.com/*
 // @downloadURL  https://github.com/Einlar/AMQScripts/raw/main/amqVivaceShortcuts.user.js
@@ -49,6 +49,11 @@ const MAX_SUBSTRING_LENGTH = 10;
  * Minimum number of shortcuts to display.
  */
 const NUM_SHORTCUTS = 3;
+
+/**
+ * Whether or not to include shortcuts containing shorter shortcuts. (e.g. if "hi" is a shortcut, this will determine whether "his" is also a shortcut)
+ */
+const FULL_SHORTCUTS = false;
 
 /**
  * @see SEARCH_CHARACTER_REPLACEMENT_MAP from AMQ code
@@ -142,7 +147,7 @@ const ALLOWED_SPECIAL_CHARACTERS = [
  *
  * @type {string[]}
  */
-const DISALLOWED_SPECIAL_CHARACTERS = ["∞"];
+const DISALLOWED_SPECIAL_CHARACTERS = ["∞","△","↓"];
 
 /**
  * Shortcuts to be shown
@@ -296,12 +301,25 @@ const optimizedShortcuts = (targets) => {
   let minPos = Infinity;
   let bestSubstring = "";
   let shortcuts = [];
+  let altShortcuts = [];
   let currentLength = 0;
 
-  for (const substring of sortedSubstrings) {
+  for (let substring of sortedSubstrings) {
     const newLength = substring.length;
 
     // Search for longer substrings only if there are not enough shortcuts yet, but display *all* the shortest ones
+    if (newLength > currentLength){
+      let temp = [];
+      for(const altSubString of altShortcuts){
+        if (altSubString.length == currentLength){
+          shortcuts.push(altSubString);
+        }
+        else{
+          temp.push(altSubString);
+        }
+      }
+      altShortcuts = temp;
+    }
     if (newLength > currentLength && shortcuts.length >= NUM_SHORTCUTS) break;
 
     const suggestions = getSuggestions(substring);
@@ -317,14 +335,55 @@ const optimizedShortcuts = (targets) => {
         minPos = pos;
         bestSubstring = substring;
       }
-
-      // If a perfect shortcut is found, append it to the results
-      if (pos === 0) {
-        shortcuts.push(substring);
+      substring = substring+"↓".repeat(pos);
+      if(substring.length > MAX_SUBSTRING_LENGTH){
+          continue;
+      }
+      //If the shortcut found has a substring that's already in shortcuts list don't add it. Otherwise, do add it.
+      let superStringQ = false;
+      if(!FULL_SHORTCUTS){
+        for(const currentShortcut of shortcuts.concat(altShortcuts)){
+          if(substring.length < currentShortcut.length){
+              continue;
+          }
+          let i = 0;
+          let j = 0;
+          while(i < substring.length && j < currentShortcut.length){
+            if(currentShortcut[j] == substring[i]){
+              j++;
+            }
+            i++;
+          }
+          if(j >= currentShortcut.length){
+            superStringQ = true;
+            break;
+          }
+        }
+      }
+      //if (shortcuts.find(shortcut => substring.includes(shortcut)) == undefined || FULL_SHORTCUTS){
+      if (!superStringQ){
+        if (pos == 0){
+          shortcuts.push(substring);
+        }
+        else{
+          altShortcuts.push(substring);
+        }
       }
     }
   }
-
+  while(altShortcuts.length > 0 && shortcuts.length < NUM_SHORTCUTS){
+    let temp = [];
+    for(const altSubString of altShortcuts){
+      if (altSubString.length == currentLength){
+        shortcuts.push(altSubString);
+      }
+      else{
+        temp.push(altSubString);
+      }
+    }
+    altShortcuts = temp;
+    currentLength += 1;
+  }
   return shortcuts.length ? shortcuts : [bestSubstring];
 };
 
@@ -358,6 +417,7 @@ const onSongPlayed = (data) => {
     data.songInfo.animeNames.english,
     data.songInfo.animeNames.romaji,
     ...data.songInfo.altAnimeNames,
+    ...data.songInfo.altAnimeNamesAnswers,
   ].flatMap((a) => a);
 
   shortcuts = optimizedShortcuts(targets);
