@@ -43,17 +43,22 @@ const MAX_DROPDOWN_ITEMS = 25;
 /**
  * The maximum length of shortcuts to consider. If a "perfect" shortcut is found (i.e. one that is the first suggestion in the dropdown list), the search will stop.
  */
-const MAX_SUBSTRING_LENGTH = 10;
+const MAX_SUBSTRING_LENGTH = 3;
 
 /**
  * Minimum number of shortcuts to display.
  */
-const NUM_SHORTCUTS = 3;
+const NUM_SHORTCUTS = 10;
 
 /**
  * Whether or not to include shortcuts containing shorter shortcuts. (e.g. if "hi" is a shortcut, this will determine whether "his" is also a shortcut)
  */
 const FULL_SHORTCUTS = false;
+
+/**
+ * Whether or not to include shortcuts that contain down arrows (shortcuts which bring a show on the menu, but not the top position)
+ */
+const TOP_SHORTCUTS_ONLY = false;
 
 /**
  * @see SEARCH_CHARACTER_REPLACEMENT_MAP from AMQ code
@@ -147,7 +152,7 @@ const ALLOWED_SPECIAL_CHARACTERS = [
  *
  * @type {string[]}
  */
-const DISALLOWED_SPECIAL_CHARACTERS = ["∞", "△", "↓"];
+const DISALLOWED_SPECIAL_CHARACTERS = ["∞","△","↓"];
 
 /**
  * Shortcuts to be shown
@@ -308,12 +313,13 @@ const optimizedShortcuts = (targets) => {
     const newLength = substring.length;
 
     // Search for longer substrings only if there are not enough shortcuts yet, but display *all* the shortest ones
-    if (newLength > currentLength) {
+    if (newLength > currentLength){
       let temp = [];
-      for (const altSubString of altShortcuts) {
-        if (altSubString.length == currentLength) {
+      for(const altSubString of altShortcuts){
+        if (altSubString.length == currentLength){
           shortcuts.push(altSubString);
-        } else {
+        }
+        else{
           temp.push(altSubString);
         }
       }
@@ -332,49 +338,51 @@ const optimizedShortcuts = (targets) => {
       const pos = Math.min(...positions);
       if (pos < minPos) {
         minPos = pos;
-        bestSubstring = substring;
+        bestSubstring = substring+"↓".repeat(pos);
       }
-      substring = substring + "↓".repeat(pos);
-      if (substring.length > MAX_SUBSTRING_LENGTH) {
-        continue;
+      substring = substring+"↓".repeat(pos);
+      if(substring.length > MAX_SUBSTRING_LENGTH || (TOP_SHORTCUTS_ONLY && pos > 0)){
+          continue;
       }
       //If the shortcut found has a substring that's already in shortcuts list don't add it. Otherwise, do add it.
       let superStringQ = false;
-      if (!FULL_SHORTCUTS) {
-        for (const currentShortcut of shortcuts.concat(altShortcuts)) {
-          if (substring.length < currentShortcut.length) {
-            continue;
+      if(!FULL_SHORTCUTS){
+        for(const currentShortcut of shortcuts.concat(altShortcuts)){
+          if(substring.length < currentShortcut.length){
+              continue;
           }
           let i = 0;
           let j = 0;
-          while (i < substring.length && j < currentShortcut.length) {
-            if (currentShortcut[j] == substring[i]) {
+          while(i < substring.length && j < currentShortcut.length){
+            if(currentShortcut[j] == substring[i]){
               j++;
             }
             i++;
           }
-          if (j >= currentShortcut.length) {
+          if(j >= currentShortcut.length){
             superStringQ = true;
             break;
           }
         }
       }
       //if (shortcuts.find(shortcut => substring.includes(shortcut)) == undefined || FULL_SHORTCUTS){
-      if (!superStringQ) {
-        if (pos == 0) {
+      if (!superStringQ){
+        if (pos == 0){
           shortcuts.push(substring);
-        } else {
+        }
+        else{
           altShortcuts.push(substring);
         }
       }
     }
   }
-  while (altShortcuts.length > 0 && shortcuts.length < NUM_SHORTCUTS) {
+  while(altShortcuts.length > 0 && shortcuts.length < NUM_SHORTCUTS){
     let temp = [];
-    for (const altSubString of altShortcuts) {
-      if (altSubString.length == currentLength) {
+    for(const altSubString of altShortcuts){
+      if (altSubString.length == currentLength){
         shortcuts.push(altSubString);
-      } else {
+      }
+      else{
         temp.push(altSubString);
       }
     }
