@@ -320,12 +320,20 @@ const optimizedShortcuts = (targets) => {
           shortcuts.push(altSubString);
         }
         else{
-          temp.push(altSubString);
+    // When searching for longer substrings, first pick those from the altShortcuts list
+    if (newLength > currentLength) {
+      altShortcuts = altShortcuts.filter((s) => {
+        // Move altShortcuts of the currentLength to the shortcuts list
+        if (s.length === currentLength) {
+          shortcuts.push(s);
+          return false;
         }
-      }
-      altShortcuts = temp;
+        // Keep the others in the altShortcuts list
+        return true;
+      });
+      // Re-check the stopping condition after moving the altShortcuts to the shortcuts list
+      if (shortcuts.length >= NUM_SHORTCUTS) break;
     }
-    if (newLength > currentLength && shortcuts.length >= NUM_SHORTCUTS) break;
 
     const suggestions = getSuggestions(substring);
     currentLength = newLength;
