@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      1.7
 // @description  Displays at least ~3~ 10 of the shortest shortcuts for an anime after guessing phase, defined as the shortest substrings of length 10 or less for which the target anime (or any of its alt names) is a suggestion in the dropdown list (a 1 character penalty represented by "↓" is applied for every position below the top that the name associated with the shortcut appears). Adapted from https://github.com/tutti-amq/amq-scripts/blob/main/animeShortcuts.user.js All shortcuts (that aren't longer version of shorter shortcuts) with the smallest length are displayed. Click on a shortcut to highlight it and move it to the front of the list.
-// @author       Einlar, Tutti, (modified by kombofuud)
+// @author       Einlar, Tutti, kombofuud
 // @match        https://animemusicquiz.com/*
 // @match        https://*.animemusicquiz.com/*
 // @downloadURL  https://github.com/Einlar/AMQScripts/raw/main/amqVivaceShortcuts.user.js
