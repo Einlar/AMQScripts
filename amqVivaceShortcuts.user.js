@@ -305,7 +305,11 @@ const optimizedShortcuts = (targets) => {
 
   let minPos = Infinity;
   let bestSubstring = "";
+
+  /** @type {string[]} */
   let shortcuts = [];
+
+  /** @type {string[]} */
   let altShortcuts = [];
   let currentLength = 0;
 
