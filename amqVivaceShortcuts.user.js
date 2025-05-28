@@ -278,6 +278,25 @@ const mapToAlternativeSubstrings = (substring) => {
 };
 
 /**
+ * Check if str2 is a subsequence of str1
+ *
+ * @param {string} str1
+ * @param {string} str2
+ * @returns {boolean}
+ */
+const subsequenceQ = (str1, str2) => {
+  let i = 0;
+  let j = 0;
+  while(i < str1.length && j < str2.length){
+    if(str1[i] == str2[j]){
+      j++;
+    }
+    i++;
+  }
+  return (j == str2.length);
+}
+
+/**
  * Find the optimal shortcuts matching any of the targets.
  *
  * @param {string[]} targets
@@ -356,22 +375,14 @@ const optimizedShortcuts = (targets) => {
       if(substring.length > MAX_SUBSTRING_LENGTH || (TOP_SHORTCUTS_ONLY && pos > 0)){
           continue;
       }
-      //If the shortcut found has a substring that's already in shortcuts list don't add it. Otherwise, do add it.
+      //Check if any of the current shortcuts are a subsequence of the new shortcut. (e.g. if "uron" is a shortcut, "uroun" wouldn't be added because it has the same letters in the same order + extra letters)
       let superStringQ = false;
       if(!FULL_SHORTCUTS){
         for(const currentShortcut of shortcuts.concat(altShortcuts)){
           if(substring.length < currentShortcut.length){
               continue;
           }
-          let i = 0;
-          let j = 0;
-          while(i < substring.length && j < currentShortcut.length){
-            if(currentShortcut[j] == substring[i]){
-              j++;
-            }
-            i++;
-          }
-          if(j >= currentShortcut.length){
+          if(subsequenceQ(substring, currentShortcut)){
             superStringQ = true;
             break;
           }
