@@ -388,18 +388,18 @@ const optimizedShortcuts = (targets) => {
       }
     }
   }
-  while(altShortcuts.length > 0 && shortcuts.length < NUM_SHORTCUTS){
-    let temp = [];
-    for(const altSubString of altShortcuts){
-      if (altSubString.length == currentLength){
-        shortcuts.push(altSubString);
-      }
-      else{
-        temp.push(altSubString);
-      }
-    }
-    altShortcuts = temp;
-    currentLength += 1;
+// If not enough shortcuts were found, try to fill with the alternative shortcuts to reach at least NUM_SHORTCUTS. When including a shortcut, ensure that all the ones with the same length are included too.
+  if (altShortcuts.length > 0 && shortcuts.length < NUM_SHORTCUTS) {
+    // Take at least enough to fill up to NUM_SHORTCUTS
+    const neededCount = Math.min(
+      NUM_SHORTCUTS - shortcuts.length,
+      altShortcuts.length
+    );
+    const maxAltLength = altShortcuts[neededCount - 1].length;
+    // Take all the altShortcuts with the same length as the longest that is needed
+    shortcuts = shortcuts.concat(
+      altShortcuts.filter((s) => s.length <= maxAltLength)
+    );
   }
   return shortcuts.length ? shortcuts : [bestSubstring];
 };
