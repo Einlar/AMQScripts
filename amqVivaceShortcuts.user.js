@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         AMQ Vivace! Optimized Shortcuts
+// @name         AMQ Vivace! Shortcuts
 // @namespace    http://tampermonkey.net/
-// @version      1.7
-// @description  Displays at least ~3~ 10 of the shortest shortcuts for an anime after guessing phase, defined as the shortest substrings of length 10 or less for which the target anime (or any of its alt names) is a suggestion in the dropdown list (a 1 character penalty represented by "↓" is applied for every position below the top that the name associated with the shortcut appears). Adapted from https://github.com/tutti-amq/amq-scripts/blob/main/animeShortcuts.user.js All shortcuts (that aren't longer version of shorter shortcuts) with the smallest length are displayed. Click on a shortcut to highlight it and move it to the front of the list.
+// @version      1.71
+// @description  Displays at least 3 of the shortest shortcuts for an anime after guessing phase, defined as the shortest substrings of length 10 or less for which the target anime (or any of its alt names) is a suggestion in the dropdown list (a 1 character penalty represented by "↓" is applied for every position below the top that the name associated with the shortcut appears). Adapted from https://github.com/tutti-amq/amq-scripts/blob/main/animeShortcuts.user.js All shortcuts (that aren't longer version of shorter shortcuts) with the smallest length are displayed. Click on a shortcut to highlight it and move it to the front of the list.
 // @author       Einlar, Tutti, kombofuud
 // @match        https://animemusicquiz.com/*
 // @match        https://*.animemusicquiz.com/*
@@ -15,6 +15,11 @@
 
 /**
  * CHANGELOG
+ *
+ * v1.7 (by kombofuud)
+ * - Exclude shortcuts that contain a shorter shortcut as a subsequence (e.g. if "uron" is a shortcut, "uroun" wouldn't be added because it has the same letters in the same order + extra letters).
+ * - Show shortcuts that are not the first suggestion in the dropdown list, but are still among the top ones. They include a "↓" character for each position below the top (counting as 1 character penalty).
+ * - Exclude shortcuts containing "△"
  *
  * v1.6
  * - Remove shortcuts containing "∞" (e.g. for "Naki∞Neko")
@@ -43,12 +48,12 @@ const MAX_DROPDOWN_ITEMS = 25;
 /**
  * The maximum length of shortcuts to consider. If a "perfect" shortcut is found (i.e. one that is the first suggestion in the dropdown list), the search will stop.
  */
-const MAX_SUBSTRING_LENGTH = 3;
+const MAX_SUBSTRING_LENGTH = 10;
 
 /**
  * Minimum number of shortcuts to display.
  */
-const NUM_SHORTCUTS = 10;
+const NUM_SHORTCUTS = 3;
 
 /**
  * Whether or not to include shortcuts containing shorter shortcuts. (e.g. if "hi" is a shortcut, this will determine whether "his" is also a shortcut)
@@ -152,7 +157,7 @@ const ALLOWED_SPECIAL_CHARACTERS = [
  *
  * @type {string[]}
  */
-const DISALLOWED_SPECIAL_CHARACTERS = ["∞","△","↓"];
+const DISALLOWED_SPECIAL_CHARACTERS = ["∞", "△", "↓"];
 
 /**
  * Shortcuts to be shown
@@ -278,23 +283,25 @@ const mapToAlternativeSubstrings = (substring) => {
 };
 
 /**
- * Check if str2 is a subsequence of str1
+ * Check if str1 constains str2 as a subsequence.
  *
- * @param {string} str1
+ * @param {string} str1 (should be longer than str2)
  * @param {string} str2
  * @returns {boolean}
  */
-const subsequenceQ = (str1, str2) => {
+const supersequenceQ = (str1, str2) => {
+  if (str1.length < str2.length) return false;
+
   let i = 0;
   let j = 0;
-  while(i < str1.length && j < str2.length){
-    if(str1[i] == str2[j]){
+  while (i < str1.length && j < str2.length) {
+    if (str1[i] == str2[j]) {
       j++;
     }
     i++;
   }
-  return (j == str2.length);
-}
+  return j == str2.length;
+};
 
 /**
  * Find the optimal shortcuts matching any of the targets.
@@ -335,14 +342,6 @@ const optimizedShortcuts = (targets) => {
   for (let substring of sortedSubstrings) {
     const newLength = substring.length;
 
-    // Search for longer substrings only if there are not enough shortcuts yet, but display *all* the shortest ones
-    if (newLength > currentLength){
-      let temp = [];
-      for(const altSubString of altShortcuts){
-        if (altSubString.length == currentLength){
-          shortcuts.push(altSubString);
-        }
-        else{
     // When searching for longer substrings, first pick those from the altShortcuts list
     if (newLength > currentLength) {
       altShortcuts = altShortcuts.filter((s) => {
@@ -369,37 +368,35 @@ const optimizedShortcuts = (targets) => {
       const pos = Math.min(...positions);
       if (pos < minPos) {
         minPos = pos;
-        bestSubstring = substring+"↓".repeat(pos);
+        bestSubstring = substring + "↓".repeat(pos);
       }
-      substring = substring+"↓".repeat(pos);
-      if(substring.length > MAX_SUBSTRING_LENGTH || (TOP_SHORTCUTS_ONLY && pos > 0)){
-          continue;
+      substring = substring + "↓".repeat(pos);
+      if (
+        substring.length > MAX_SUBSTRING_LENGTH ||
+        (TOP_SHORTCUTS_ONLY && pos > 0)
+      ) {
+        continue;
       }
+
       //Check if any of the current shortcuts are a subsequence of the new shortcut. (e.g. if "uron" is a shortcut, "uroun" wouldn't be added because it has the same letters in the same order + extra letters)
-      let superStringQ = false;
-      if(!FULL_SHORTCUTS){
-        for(const currentShortcut of shortcuts.concat(altShortcuts)){
-          if(substring.length < currentShortcut.length){
-              continue;
-          }
-          if(subsequenceQ(substring, currentShortcut)){
-            superStringQ = true;
-            break;
-          }
-        }
-      }
-      //if (shortcuts.find(shortcut => substring.includes(shortcut)) == undefined || FULL_SHORTCUTS){
-      if (!superStringQ){
-        if (pos == 0){
-          shortcuts.push(substring);
-        }
-        else{
-          altShortcuts.push(substring);
-        }
+      const superStringQ = !FULL_SHORTCUTS
+        ? shortcuts
+            .concat(altShortcuts)
+            .filter((s) => s.length < substring.length)
+            .some((s) => supersequenceQ(substring, s))
+        : false;
+
+      if (superStringQ) continue;
+
+      if (pos == 0) {
+        shortcuts.push(substring);
+      } else {
+        altShortcuts.push(substring);
       }
     }
   }
-// If not enough shortcuts were found, try to fill with the alternative shortcuts to reach at least NUM_SHORTCUTS. When including a shortcut, ensure that all the ones with the same length are included too.
+
+  // If not enough shortcuts were found, try to fill with the alternative shortcuts to reach at least NUM_SHORTCUTS. When including a shortcut, ensure that all the ones with the same length are included too.
   if (altShortcuts.length > 0 && shortcuts.length < NUM_SHORTCUTS) {
     // Take at least enough to fill up to NUM_SHORTCUTS
     const neededCount = Math.min(
@@ -561,7 +558,7 @@ const setupMetadata = () => {
   AMQ_addScriptData({
     name: "AMQ Vivace! Shortcuts",
     author: "Einlar",
-    version: "1.4",
+    version: "1.7",
     link: "https://github.com/Einlar/AMQScripts",
     description: `
       <p>Displays 3 or more shortest dropdown shortcuts during the results phase.</p>
