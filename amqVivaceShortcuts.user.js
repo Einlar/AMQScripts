@@ -66,6 +66,11 @@ const FULL_SHORTCUTS = false;
 const TOP_SHORTCUTS_ONLY = false;
 
 /**
+ * how much longer a shortcut can be than the shortest one (e.g. if there's a 3 length shortcut and the variable is set to 3, nothing longer than 6 will be suggested)
+ */
+const MAX_LENGTH_DIFFERENTIAL = 3;
+
+/**
  * @see SEARCH_CHARACTER_REPLACEMENT_MAP from AMQ code
  */
 const NORMALIZATION_MAP = {
@@ -338,6 +343,7 @@ const optimizedShortcuts = (targets) => {
   /** @type {string[]} */
   let altShortcuts = [];
   let currentLength = 0;
+  let shortestLength = 999;
 
   for (let substring of sortedSubstrings) {
     const newLength = substring.length;
@@ -348,13 +354,14 @@ const optimizedShortcuts = (targets) => {
         // Move altShortcuts of the currentLength to the shortcuts list
         if (s.length === currentLength) {
           shortcuts.push(s);
+          shortestLength = shortcuts[0].length;
           return false;
         }
         // Keep the others in the altShortcuts list
         return true;
       });
       // Re-check the stopping condition after moving the altShortcuts to the shortcuts list
-      if (shortcuts.length >= NUM_SHORTCUTS) break;
+      if (shortcuts.length >= NUM_SHORTCUTS || newLength > shortestLength + MAX_LENGTH_DIFFERENTIAL) break;
     }
 
     const suggestions = getSuggestions(substring);
@@ -390,6 +397,7 @@ const optimizedShortcuts = (targets) => {
 
       if (pos == 0) {
         shortcuts.push(substring);
+        shortestLength = shortcuts[0].length;
       } else {
         altShortcuts.push(substring);
       }
@@ -406,7 +414,7 @@ const optimizedShortcuts = (targets) => {
     const maxAltLength = altShortcuts[neededCount - 1].length;
     // Take all the altShortcuts with the same length as the longest that is needed
     shortcuts = shortcuts.concat(
-      altShortcuts.filter((s) => s.length <= maxAltLength)
+      altShortcuts.filter((s) => s.length <= Math.min(maxAltLength, shortestLength + MAX_LENGTH_DIFFERENTIAL))
     );
   }
   return shortcuts.length ? shortcuts : [bestSubstring];
