@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Vivace! Shortcuts
 // @namespace    http://tampermonkey.net/
-// @version      1.71
+// @version      1.8
 // @description  Displays at least 3 of the shortest shortcuts for an anime after guessing phase, defined as the shortest substrings of length 10 or less for which the target anime (or any of its alt names) is a suggestion in the dropdown list (a 1 character penalty represented by "↓" is applied for every position below the top that the name associated with the shortcut appears). Adapted from https://github.com/tutti-amq/amq-scripts/blob/main/animeShortcuts.user.js All shortcuts (that aren't longer version of shorter shortcuts) with the smallest length are displayed. Click on a shortcut to highlight it and move it to the front of the list.
 // @author       Einlar, Tutti, kombofuud
 // @match        https://animemusicquiz.com/*
@@ -15,6 +15,9 @@
 
 /**
  * CHANGELOG
+ *
+ * v1.8 (by kombofuud)
+ * - Cap the maximum range of shortcuts length to 3, configurable via the MAX_LENGTH_DIFFERENTIAL variable. For instance, for a show where the shortest shortcut has length 5, only shortcuts up to length 8 will be shown. This avoids showing shortcuts that are too long (and thus not interesting).
  *
  * v1.7 (by kombofuud)
  * - Exclude shortcuts that contain a shorter shortcut as a subsequence (e.g. if "uron" is a shortcut, "uroun" wouldn't be added because it has the same letters in the same order + extra letters).
@@ -361,7 +364,11 @@ const optimizedShortcuts = (targets) => {
         return true;
       });
       // Re-check the stopping condition after moving the altShortcuts to the shortcuts list
-      if (shortcuts.length >= NUM_SHORTCUTS || newLength > shortestLength + MAX_LENGTH_DIFFERENTIAL) break;
+      if (
+        shortcuts.length >= NUM_SHORTCUTS ||
+        newLength > shortestLength + MAX_LENGTH_DIFFERENTIAL
+      )
+        break;
     }
 
     const suggestions = getSuggestions(substring);
@@ -414,7 +421,11 @@ const optimizedShortcuts = (targets) => {
     const maxAltLength = altShortcuts[neededCount - 1].length;
     // Take all the altShortcuts with the same length as the longest that is needed
     shortcuts = shortcuts.concat(
-      altShortcuts.filter((s) => s.length <= Math.min(maxAltLength, shortestLength + MAX_LENGTH_DIFFERENTIAL))
+      altShortcuts.filter(
+        (s) =>
+          s.length <=
+          Math.min(maxAltLength, shortestLength + MAX_LENGTH_DIFFERENTIAL)
+      )
     );
   }
   return shortcuts.length ? shortcuts : [bestSubstring];
