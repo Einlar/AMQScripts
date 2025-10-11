@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Enter DropD
 // @namespace    http://tampermonkey.net/
-// @version      1.9
+// @version      1.10
 // @description  Pressing Enter in the answer input will automatically send the value of the first suggestion in the dropdown list, or the highlighted item if any. If you don't press Enter before the guessing phase ends, this will happen automatically (except if you or any teammate already submitted a valid answer). Activate/deactivate with [ALT+Q].
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -13,6 +13,9 @@
 
 /**
  * CHANGELOG
+ *
+ * v1.10
+ * - Major refactor to directly access the actual dropdown suggestions, ensuring that the script will always select the correct first suggestion even if the dropdown logic changes in the future.
  *
  * v1.9
  * - Update the script to match the latest dropdown logic, which ignores apostrophes when searching for suggestions.
@@ -48,35 +51,80 @@ const LOADING_CHECK_INTERVAL = 500;
 const TOGGLE_SHORTCUT = { alt: true, key: "q" };
 
 /**
- * Retrieve the first suggestion in the dropdown list, given a search string.
+ * Retrieve the first suggestion from the last dropdown results, without waiting for any change.
+ * (Useful at the end of the guessing phase, when the dropdown is not visible anymore)
  *
- * @param {string} search
+ * @returns {string}
  */
-const getSuggestions = (search) => {
-  const regex = new RegExp(createAnimeSearchRegexQuery(search), "i");
+const getImmediateSuggestions = () => {
+  return (
+    quiz.answerInput.typingInput.autoCompleteController.awesomepleteInstance
+      .suggestions?.[0]?.value || ""
+  );
+};
 
-  const filteredList =
-    quiz.answerInput.typingInput.autoCompleteController.list.filter((anime) => {
-      // First, try matching the anime title as-is
-      if (regex.test(anime)) {
-        return true;
+/**
+ * Retrieve the first suggestion from the actual dropdown. Waits for the dropdown to appear if not already visible.
+ *
+ * @param {number} maxTimeout - Maximum time to wait for the dropdown to appear (in ms)
+ */
+const getSuggestions = async (maxTimeout = 100) => {
+  // Get the awesomplete container and its <ul> element
+  const awesompleteContainer = document.querySelector(
+    "#qpAnswerInputContainer .awesomplete"
+  );
+  if (!awesompleteContainer) {
+    return "";
+  }
+
+  const ul = awesompleteContainer.querySelector("ul");
+  if (!ul) {
+    return "";
+  }
+
+  /**
+   * Helper function to get the first <li> text content
+   * @returns {string}
+   */
+  const getFirstLiText = () => {
+    const firstLi = ul.querySelector("li");
+    if (!firstLi) {
+      return "";
+    }
+    // Get text content and strip any formatting/HTML
+    return firstLi.textContent.trim();
+  };
+
+  // Check if the <ul> is visible (not hidden)
+  const isVisible = () => !ul.hasAttribute("hidden");
+
+  // If already visible, return immediately
+  if (isVisible()) {
+    return getFirstLiText();
+  }
+
+  // Otherwise, wait for the <ul> to become visible (hidden attribute removed)
+  return new Promise((resolve) => {
+    // Set a timeout to avoid waiting forever
+    const timeout = setTimeout(() => {
+      observer.disconnect();
+      resolve(getImmediateSuggestions());
+    }, maxTimeout); // 100ms timeout
+
+    const observer = new MutationObserver((mutations) => {
+      if (isVisible()) {
+        clearTimeout(timeout);
+        observer.disconnect();
+        resolve(getFirstLiText());
       }
-
-      // If no match and the title contains an apostrophe, try matching without it
-      if (anime.includes("'")) {
-        const animeWithoutApostrophe = anime.replace("'", "");
-        return regex.test(animeWithoutApostrophe);
-      }
-
-      return false;
     });
 
-  // Sort by length first, then alphabetically
-  filteredList.sort((a, b) => {
-    return a.length - b.length || a.localeCompare(b);
+    // Observe changes to the <ul> element's attributes (specifically the "hidden" attribute)
+    observer.observe(ul, {
+      attributes: true,
+      attributeFilter: ["hidden"],
+    });
   });
-
-  return filteredList[0] || "";
 };
 
 /**
@@ -188,7 +236,7 @@ const handleGuessPhaseOver = () => {
     // Check if any teammate has already submitted a valid answer. If so, do nothing.
     if (hasTeammateSubmittedValidAnswer()) return;
 
-    let suggestion = getSuggestions(currentAnswer);
+    let suggestion = getImmediateSuggestions();
     if (suggestion !== "") {
       // Use the highlighted value from the dropdown if any
       const highlighted = getHighlightedSuggestion();
@@ -222,7 +270,7 @@ const handleToggleShortcut = (e) => {
  */
 const setupDropD = () => {
   // Handle Enter key press in answer input
-  $("#qpAnswerInput").on("keydown", function (event) {
+  $("#qpAnswerInput").on("keydown", async function (event) {
     if (!active) return;
 
     // If the user has selected an item from the dropdown, do nothing
@@ -237,7 +285,7 @@ const setupDropD = () => {
     if (event.which === ENTER_KEY_CODE) {
       const val = $(this).val();
       if (typeof val === "string" && val !== "") {
-        const suggestion = getSuggestions(val);
+        const suggestion = await getSuggestions();
 
         // Avoid emptying the input if the dropdown has no items
         if (suggestion === "") return;

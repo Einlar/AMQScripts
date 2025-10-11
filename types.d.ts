@@ -51,11 +51,7 @@ declare class QuizAnswerInput {
     autoCompleteController: {
       updateList: () => void;
       list: string[];
-      awesomepleteInstance: {
-        selected: boolean;
-        isOpened: boolean;
-        $ul: JQuery<HTMLUListElement>;
-      };
+      awesomepleteInstance: AmqAwesomepleteClass;
     };
   };
   activeInputController: {
@@ -306,6 +302,73 @@ export class HostModal {
   getSettings: () => any;
 }
 
+type Suggestion = {
+  label: string;
+  value: string;
+};
+
+/**
+ * Base Awesomeplete class interface
+ */
+declare class AwesompleteClass {
+  constructor(input: HTMLInputElement, options?: any);
+  ul: HTMLUListElement;
+  input: HTMLInputElement;
+  minChars: number;
+  maxItems: number;
+  sort: boolean | ((a: any, b: any) => number);
+  data: (item: any, input?: string) => any;
+  filter: (text: any, input: string) => boolean;
+  suggestions: Suggestion[];
+  index: number;
+  status: HTMLElement;
+  count: number;
+
+  goto(i: number): void;
+  open(): void;
+  close(options?: { reason?: string }): void;
+  item(text: any, input: string, item_id: number): HTMLLIElement;
+  evaluate(): void;
+}
+
+/**
+ * Suggestion class used by Awesomeplete
+ */
+declare class SuggestionClass {
+  constructor(data: string | string[] | { label: string; value: string });
+  label: string;
+  value: string;
+  length: number;
+  toString(): string;
+  valueOf(): string;
+}
+
+/**
+ * Enhanced Awesomeplete class with AMQ-specific functionality
+ */
+declare class AmqAwesomepleteClass extends AwesompleteClass {
+  constructor(input: HTMLInputElement, options: any, scrollable?: boolean);
+
+  searchId: number;
+  currentSubList: any[] | null;
+  letterLists: Record<string, any[]>;
+  currentQuery: string;
+  isOpened: boolean;
+  selected: boolean;
+  $ul: JQuery<HTMLUListElement>;
+  _list: any[];
+
+  evaluate(): void;
+  hide(): void;
+  goto(i: number): void;
+  item(text: any, input: string, item_id: number): HTMLLIElement;
+}
+
+/**
+ * Global escapeHtml function used by AmqAwesomeplete
+ */
+declare function escapeHtml(text: string): string;
+
 declare global {
   var gameChat: GameChat;
   var quiz: Quiz;
@@ -341,6 +404,26 @@ declare global {
   var AMQ_addStyle: (css: string) => void;
 
   var hostModal: HostModal;
+
+  /**
+   * Base Awesomeplete class
+   */
+  var Awesomplete: AwesompleteClass;
+
+  /**
+   * Enhanced Awesomeplete class with AMQ-specific functionality
+   */
+  var AmqAwesomeplete: typeof AmqAwesomepleteClass;
+
+  /**
+   * Suggestion class used by Awesomeplete
+   */
+  var Suggestion: typeof SuggestionClass;
+
+  /**
+   * Global escapeHtml function used by AmqAwesomeplete
+   */
+  var escapeHtml: (text: string) => string;
 }
 
 declare class GameChat {
