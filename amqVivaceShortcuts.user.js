@@ -56,7 +56,7 @@ const MAX_SUBSTRING_LENGTH = 10;
 /**
  * Minimum number of shortcuts to display.
  */
-const NUM_SHORTCUTS = 3;
+const NUM_SHORTCUTS = 10;
 
 /**
  * Whether or not to include shortcuts containing shorter shortcuts. (e.g. if "hi" is a shortcut, this will determine whether "his" is also a shortcut)
@@ -71,7 +71,7 @@ const TOP_SHORTCUTS_ONLY = false;
 /**
  * how much longer a shortcut can be than the shortest one (e.g. if there's a 3 length shortcut and the variable is set to 3, nothing longer than 6 will be suggested)
  */
-const MAX_LENGTH_DIFFERENTIAL = 3;
+const MAX_LENGTH_DIFFERENTIAL = 10;
 
 /**
  * @see SEARCH_CHARACTER_REPLACEMENT_MAP from AMQ code
@@ -126,6 +126,7 @@ const NORMALIZATION_MAP = {
   "@": " ",
   _: " ",
   "#": " ",
+  "'": " ",
   é: "e",
   ê: "e",
   ë: "e",
@@ -158,6 +159,7 @@ const ALLOWED_SPECIAL_CHARACTERS = [
   "@",
   "_",
   "#",
+  "'",
 ];
 
 /**
@@ -165,7 +167,9 @@ const ALLOWED_SPECIAL_CHARACTERS = [
  *
  * @type {string[]}
  */
-const DISALLOWED_SPECIAL_CHARACTERS = ["∞", "△", "↓"];
+const DISALLOWED_SPECIAL_CHARACTERS = ["∞", "△", "↓","°","♡","∬"];
+const FULL_CHARACTER_LIST = "`1234567890-=~!@#$%^&*()_+qwertyuiop[]\\asdfghjkl;'zxcvbnm,./QWERTYUIOP{}|ASDFGHJKL:\"ZXCVBNM<>? ";
+const WHITELIST_CHARACTERS_INSTEAD_OF_BLACKLIST = true;
 
 /**
  * Shortcuts to be shown
@@ -240,7 +244,12 @@ const mapToAlternativeSubstrings = (substring) => {
 
   // Apply mandatory replacements
   let normalized = substring.replace(/./g, (char) => {
-    if (DISALLOWED_SPECIAL_CHARACTERS.includes(char)) return "";
+    if (WHITELIST_CHARACTERS_INSTEAD_OF_BLACKLIST) {
+        if (!FULL_CHARACTER_LIST.includes(char)) return "";
+    }
+    else{
+        if (DISALLOWED_SPECIAL_CHARACTERS.includes(char)) return "";
+    }
     if (ALLOWED_SPECIAL_CHARACTERS.includes(/** @type {any} */ (char)))
       return char;
     return NORMALIZATION_MAP[char] || char;
