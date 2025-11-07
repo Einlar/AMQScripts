@@ -74,6 +74,14 @@ const TOP_SHORTCUTS_ONLY = false;
 const MAX_LENGTH_DIFFERENTIAL = 10;
 
 /**
+* Prevents any nonstandard keyboard characters from appearing
+*/
+
+const WHITELIST_CHARACTERS_INSTEAD_OF_BLACKLIST = true;
+const KEYBOARD_LAYOUT = "ANSI_104" // pick between "ANSI_104", "ISO", "JIS" or "CUSTOM"
+const CUSTOM_LAYOUT = "";
+
+/**
  * @see SEARCH_CHARACTER_REPLACEMENT_MAP from AMQ code
  */
 const NORMALIZATION_MAP = {
@@ -164,13 +172,33 @@ const ALLOWED_SPECIAL_CHARACTERS = [
 
 /**
  * These special characters are not matched by AMQ with a space, but they should still not be allowed in shortcuts.
+ * (only applicable when WHITELIST_CHARACTERS_INSTEAD_OF_BLACKLIST is false)
  *
  * @type {string[]}
  */
 const DISALLOWED_SPECIAL_CHARACTERS = ["∞", "△", "↓","°","♡","∬"];
-const FULL_CHARACTER_LIST = "`1234567890-=~!@#$%^&*()_+qwertyuiop[]\\asdfghjkl;'zxcvbnm,./QWERTYUIOP{}|ASDFGHJKL:\"ZXCVBNM<>? ";
-const WHITELIST_CHARACTERS_INSTEAD_OF_BLACKLIST = true;
 
+/**
+* Determines a list of allowed characters when HITELIST_CHARACTERS_INSTEAD_OF_BLACKLIST is true
+* I hope I got the character sets right for JIS and ISO, if I got any of the characters wrong (or the wrong version of a character), please let @kombofuud know in the scripts-for-games channel.
+*/
+const ANSI_104 = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890`~!@#$%^&*()-_=+[{]}\\|;:'\",<.>/? ";
+const ISO = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890`¬!\"£$%^&*()-_=+[{]};:'@#~\\|',<.>/? ";
+const JIS = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890`¥!\"#$%^&'()-_=+[{｢]}｣\\|;:『'…』,<.>/?・° ";
+let FULL_CHARACTER_LIST;
+switch (KEYBOARD_LAYOUT){
+  case "ISO":
+    FULL_CHARACTER_LIST = ISO;
+    break;
+  case "JIS":
+    FULL_CHARACTER_LIST = ISO;
+    break;
+  case "CUSTOM":
+    FULL_CHARACTER_LIST = CUSTOM_LAYOUT;
+    break;
+  default:
+    FULL_CHARACTER_LIST = ANSI_104;
+}
 /**
  * Shortcuts to be shown
  *
