@@ -200,7 +200,6 @@ const DISALLOWED_SPECIAL_CHARACTERS = ["∞", "△", "↓", "°", "♡", "∬"];
 const ACTIVE_KEYBOARD_LAYOUT = KEYBOARD_LAYOUT_WHITELIST
   ? KEYBOARD_LAYOUTS[KEYBOARD_LAYOUT_WHITELIST] || KEYBOARD_LAYOUTS["ANSI_104"]
   : null;
-
 /**
  * Shortcuts to be shown
  *
@@ -230,7 +229,7 @@ const getSuggestions = (search) => {
     );
 
   filteredList.sort((a, b) => {
-    return a.length - b.length || a.localeCompare(b);
+    return a.length - b.length || (a < b ? -1: 1);
   });
 
   return filteredList.slice(0, MAX_DROPDOWN_ITEMS);
@@ -265,12 +264,21 @@ const mapToAlternativeSubstrings = (substring) => {
   const alternatives = new Set();
 
   // Add the AMQ replacement
-  alternatives.add(
-    replaceCharactersForSeachCharacters(substring).replace(
-      new RegExp(DISALLOWED_SPECIAL_CHARACTERS.join("|"), "g"),
-      ""
-    )
-  );
+  if (ACTIVE_KEYBOARD_LAYOUT){
+      alternatives.add(
+          replaceCharactersForSeachCharacters(substring).replace(
+              new RegExp(`[^${RegExp.escape(ACTIVE_KEYBOARD_LAYOUT)}]`, "gu"),
+              ""
+          )
+      );
+  } else {
+      alternatives.add(
+          replaceCharactersForSeachCharacters(substring).replace(
+              new RegExp(DISALLOWED_SPECIAL_CHARACTERS.join("|"), "g"),
+              ""
+          )
+      );
+  }
 
   // Apply mandatory replacements
   let normalized = substring.replace(/./g, (char) => {
