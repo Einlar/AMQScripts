@@ -75,7 +75,7 @@ const TOP_SHORTCUTS_ONLY = false;
 /**
  * how much longer a shortcut can be than the shortest one (e.g. if there's a 3 length shortcut and the variable is set to 3, nothing longer than 6 will be suggested)
  */
-const MAX_LENGTH_DIFFERENTIAL = 10;
+const MAX_LENGTH_DIFFERENTIAL = 3;
 
 /**
  * Supported keyboard layouts, to be used when KEYBOARD_LAYOUT_WHITELIST is set.
@@ -393,12 +393,16 @@ const optimizedShortcuts = (targets) => {
   let altShortcuts = [];
   let currentLength = 0;
   let shortestLength = 999;
+  let highlightsOnly = false;
+  let highlightedShortcuts = JSON.parse(
+    localStorage.getItem(LOCAL_STORAGE_KEY) || "[]"
+  );
 
   for (let substring of sortedSubstrings) {
     const newLength = substring.length;
 
     // When searching for longer substrings, first pick those from the altShortcuts list
-    if (newLength > currentLength) {
+    if (newLength > currentLength && currentLength <= shortestLength + MAX_LENGTH_DIFFERENTIAL) {
       altShortcuts = altShortcuts.filter((s) => {
         // Move altShortcuts of the currentLength to the shortcuts list
         if (s.length === currentLength) {
@@ -413,8 +417,9 @@ const optimizedShortcuts = (targets) => {
       if (
         shortcuts.length >= NUM_SHORTCUTS ||
         newLength > shortestLength + MAX_LENGTH_DIFFERENTIAL
-      )
-        break;
+      ){
+        highlightsOnly = true;
+      }
     }
 
     const suggestions = getSuggestions(substring);
@@ -431,9 +436,15 @@ const optimizedShortcuts = (targets) => {
         bestSubstring = substring + "↓".repeat(pos);
       }
       substring = substring + "↓".repeat(pos);
+      if (highlightedShortcuts.includes(substring)){
+        shortcuts.push(substring);
+        shortestLength = shortcuts[0].length;
+        continue;
+      }
       if (
         substring.length > MAX_SUBSTRING_LENGTH ||
-        (TOP_SHORTCUTS_ONLY && pos > 0)
+        (TOP_SHORTCUTS_ONLY && pos > 0) ||
+        highlightsOnly
       ) {
         continue;
       }
