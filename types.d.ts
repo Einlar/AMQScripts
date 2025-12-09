@@ -424,6 +424,13 @@ declare global {
    * Global escapeHtml function used by AmqAwesomeplete
    */
   var escapeHtml: (text: string) => string;
+
+  /**
+   * Fix for RegExp.escape missing from TS (@see https://github.com/microsoft/TypeScript/issues/61321)
+   */
+  interface RegExpConstructor {
+    escape(str: string): string;
+  }
 }
 
 declare class GameChat {
