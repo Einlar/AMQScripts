@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Vivace! Shortcuts
 // @namespace    http://tampermonkey.net/
-// @version      1.9
+// @version      1.10
 // @description  Displays at least 10 of the shortest shortcuts for an anime after guessing phase, defined as the shortest substrings of length 10 or less for which the target anime (or any of its alt names) is a suggestion in the dropdown list (a 1 character penalty represented by "↓" is applied for every position below the top that the name associated with the shortcut appears). Adapted from https://github.com/tutti-amq/amq-scripts/blob/main/animeShortcuts.user.js All shortcuts (that aren't longer version of shorter shortcuts) with the smallest length are displayed. Click on a shortcut to highlight it and move it to the front of the list.
 // @author       Einlar, Tutti, kombofuud
 // @match        https://animemusicquiz.com/*
@@ -15,6 +15,11 @@
 
 /**
  * CHANGELOG
+ *
+ * v1.10 (by kombofuud)
+ * - Highlighted shortcuts now always show even when NUM_SHORTCUTS limit is reached, bypassing length restrictions
+ * - Fixed: localeCompare issue in sorting that could cause inconsistent behavior
+ * - Fixed: correctly handle the disallowed characters when a custom keyboard layout is used
  *
  * v1.9 (by kombofuud)
  * - By default include shortcuts that contain only keyboard characters (ANSI 104 layout by default, configurable) unless KEYBOARD_LAYOUT_WHITELIST is set to null.
@@ -229,7 +234,7 @@ const getSuggestions = (search) => {
     );
 
   filteredList.sort((a, b) => {
-    return a.length - b.length || (a < b ? -1: 1);
+    return a.length - b.length || (a < b ? -1 : 1);
   });
 
   return filteredList.slice(0, MAX_DROPDOWN_ITEMS);
@@ -264,20 +269,20 @@ const mapToAlternativeSubstrings = (substring) => {
   const alternatives = new Set();
 
   // Add the AMQ replacement
-  if (ACTIVE_KEYBOARD_LAYOUT){
-      alternatives.add(
-          replaceCharactersForSeachCharacters(substring).replace(
-              new RegExp(`[^${RegExp.escape(ACTIVE_KEYBOARD_LAYOUT)}]`, "gu"),
-              ""
-          )
-      );
+  if (ACTIVE_KEYBOARD_LAYOUT) {
+    alternatives.add(
+      replaceCharactersForSeachCharacters(substring).replace(
+        new RegExp(`[^${RegExp.escape(ACTIVE_KEYBOARD_LAYOUT)}]`, "gu"),
+        ""
+      )
+    );
   } else {
-      alternatives.add(
-          replaceCharactersForSeachCharacters(substring).replace(
-              new RegExp(DISALLOWED_SPECIAL_CHARACTERS.join("|"), "g"),
-              ""
-          )
-      );
+    alternatives.add(
+      replaceCharactersForSeachCharacters(substring).replace(
+        new RegExp(DISALLOWED_SPECIAL_CHARACTERS.join("|"), "g"),
+        ""
+      )
+    );
   }
 
   // Apply mandatory replacements
@@ -417,7 +422,7 @@ const optimizedShortcuts = (targets) => {
       if (
         shortcuts.length >= NUM_SHORTCUTS ||
         newLength > shortestLength + MAX_LENGTH_DIFFERENTIAL
-      ){
+      ) {
         highlightsOnly = true;
       }
     }
@@ -436,7 +441,7 @@ const optimizedShortcuts = (targets) => {
         bestSubstring = substring + "↓".repeat(pos);
       }
       substring = substring + "↓".repeat(pos);
-      if (highlightedShortcuts.includes(substring)){
+      if (highlightedShortcuts.includes(substring)) {
         shortcuts.push(substring);
         shortestLength = shortcuts[0].length;
         continue;
