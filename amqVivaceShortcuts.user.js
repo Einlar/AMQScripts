@@ -402,7 +402,7 @@ const optimizedShortcuts = (targets) => {
     const newLength = substring.length;
 
     // When searching for longer substrings, first pick those from the altShortcuts list
-    if (newLength > currentLength && !highightsOnly) {
+    if (newLength > currentLength && !highlightsOnly) {
       altShortcuts = altShortcuts.filter((s) => {
         // Move altShortcuts of the currentLength to the shortcuts list
         if (s.length === currentLength) {
