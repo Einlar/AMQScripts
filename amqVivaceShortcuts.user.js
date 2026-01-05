@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Vivace! Shortcuts
 // @namespace    http://tampermonkey.net/
-// @version      1.10
+// @version      1.11
 // @description  Displays at least 10 of the shortest shortcuts for an anime after guessing phase, defined as the shortest substrings of length 10 or less for which the target anime (or any of its alt names) is a suggestion in the dropdown list (a 1 character penalty represented by "↓" is applied for every position below the top that the name associated with the shortcut appears). Adapted from https://github.com/tutti-amq/amq-scripts/blob/main/animeShortcuts.user.js All shortcuts (that aren't longer version of shorter shortcuts) with the smallest length are displayed. Click on a shortcut to highlight it and move it to the front of the list.
 // @author       Einlar, Tutti, kombofuud
 // @match        https://animemusicquiz.com/*
@@ -15,6 +15,9 @@
 
 /**
  * CHANGELOG
+ *
+ * v1.11 (by kombofuud)
+ * - Reduces lag when checking for substrings by optimizing the checking algorithm and using a Set for highlighted shortcuts.
  *
  * v1.10 (by kombofuud)
  * - Highlighted shortcuts now always show even when NUM_SHORTCUTS limit is reached, bypassing length restrictions
@@ -476,19 +479,21 @@ const optimizedShortcuts = (targets) => {
 
   //Avoids calling getSuggestions on shortcuts when only checking for highlighted shortcuts. This reduces lags when there are a lot of candidates (e.g. CHA-LA HEAD-CHA-LA)
   const remainingSubstrings = [...highlightedList, ...sortedSubstrings.slice(indexSlice)];
-  for (let substring of remainingSubstrings){
-      let substringChecker = substring;
-      substring = substring.replace("↓","");
-      for(let i = substringChecker.length-substring.length; i < MAX_DROPDOWN_ITEMS; i++){
-          if(highlightedShortcuts.has(substringChecker)){
-              const suggestions = getSuggestions(substring);
-              if(targets.includes(suggestions[i])){
-                  shortcuts.push(substringChecker);
-              }
-          }
-          substringChecker += "↓";
+  remainingSubstrings.forEach((rawSubstring) => {
+    const cleanSubstring = rawSubstring.replaceAll("↓", "");
+    const initialArrowCount = rawSubstring.length - cleanSubstring.length;
+
+    for (let arrowCount = initialArrowCount; arrowCount < MAX_DROPDOWN_ITEMS; arrowCount++) {
+      const candidateShortcut = cleanSubstring + "↓".repeat(arrowCount);
+
+      if (highlightedShortcuts.has(candidateShortcut)) {
+        const suggestions = getSuggestions(cleanSubstring);
+        if (targets.includes(suggestions[arrowCount])) {
+          shortcuts.push(candidateShortcut);
+        }
       }
-  }
+    }
+  });
 
 
   // If not enough shortcuts were found, try to fill with the alternative shortcuts to reach at least NUM_SHORTCUTS. When including a shortcut, ensure that all the ones with the same length are included too.
