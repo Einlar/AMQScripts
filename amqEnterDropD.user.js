@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Enter DropD
 // @namespace    http://tampermonkey.net/
-// @version      1.10
+// @version      1.11
 // @description  Pressing Enter in the answer input will automatically send the value of the first suggestion in the dropdown list, or the highlighted item if any. If you don't press Enter before the guessing phase ends, this will happen automatically (except if you or any teammate already submitted a valid answer). Activate/deactivate with [ALT+Q].
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -13,6 +13,9 @@
 
 /**
  * CHANGELOG
+ *
+ * v1.11
+ * - Fix the script after an AMQ update that turned the dropdown's autoCompleteController into a global object.
  *
  * v1.10
  * - Major refactor to directly access the actual dropdown suggestions, ensuring that the script will always select the correct first suggestion even if the dropdown logic changes in the future.
@@ -51,16 +54,25 @@ const LOADING_CHECK_INTERVAL = 500;
 const TOGGLE_SHORTCUT = { alt: true, key: "q" };
 
 /**
+ * Get the dropdown attached to the quiz answer input.
+ * AMQ keeps a single global autoCompleteController with one dropdown per answer input (quiz, AMQdle...),
+ * and recreates them whenever the anime list is updated, so this must be looked up on every use.
+ *
+ * @returns {InstanceType<typeof AmqAwesomeplete> | undefined}
+ */
+const getQuizDropdown = () =>
+  autoCompleteController.awesomepleteInstances.find(
+    (instance) => instance.input === quiz.answerInput.typingInput.$input[0]
+  );
+
+/**
  * Retrieve the first suggestion from the last dropdown results, without waiting for any change.
  * (Useful at the end of the guessing phase, when the dropdown is not visible anymore)
  *
  * @returns {string}
  */
 const getImmediateSuggestions = () => {
-  return (
-    quiz.answerInput.typingInput.autoCompleteController.awesomepleteInstance
-      .suggestions?.[0]?.value || ""
-  );
+  return getQuizDropdown()?.suggestions?.[0]?.value || "";
 };
 
 /**
@@ -133,7 +145,7 @@ const getSuggestions = async (maxTimeout = 100) => {
  * @param {string} animeName
  */
 const isValidAnime = (animeName) => {
-  return quiz.answerInput.typingInput.autoCompleteController.list.some(
+  return autoCompleteController.list.some(
     (anime) => anime.toLowerCase() === animeName.toLowerCase()
   );
 };
@@ -165,18 +177,15 @@ const hasTeammateSubmittedValidAnswer = () => {
  * @returns {string}
  */
 const getHighlightedSuggestion = () => {
-  if (
-    !quiz.answerInput.typingInput.autoCompleteController.awesomepleteInstance
-      .isOpened
-  ) {
+  const dropdown = getQuizDropdown();
+  if (!dropdown?.isOpened) {
     return "";
   }
 
-  const highlighted =
-    quiz.answerInput.typingInput.autoCompleteController.awesomepleteInstance.$ul
-      .children("li")
-      .filter('[aria-selected="true"]')
-      .text();
+  const highlighted = dropdown.$ul
+    .children("li")
+    .filter('[aria-selected="true"]')
+    .text();
 
   return highlighted || "";
 };
@@ -191,7 +200,7 @@ const submitAnswerAndClose = (answer) => {
   quiz.answerInput.submitAnswer(true);
 
   // Close the dropdown
-  quiz.answerInput.activeInputController.autoCompleteController.awesomepleteInstance.close();
+  getQuizDropdown()?.close();
 };
 
 /**
@@ -274,10 +283,7 @@ const setupDropD = () => {
     if (!active) return;
 
     // If the user has selected an item from the dropdown, do nothing
-    if (
-      quiz.answerInput.typingInput.autoCompleteController.awesomepleteInstance
-        .selected
-    ) {
+    if (getQuizDropdown()?.selected) {
       return;
     }
 

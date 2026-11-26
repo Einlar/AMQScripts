@@ -48,18 +48,6 @@ declare class QuizAnswerInput {
     quizAnswerState: {
       currentAnswer: string | null;
     };
-    autoCompleteController: {
-      updateList: () => void;
-      list: string[];
-      awesomepleteInstance: AmqAwesomepleteClass;
-    };
-  };
-  activeInputController: {
-    autoCompleteController: {
-      awesomepleteInstance: {
-        close: () => void;
-      };
-    };
   };
 }
 
@@ -100,7 +88,7 @@ declare class Lobby {
 }
 
 export type GameSettings = {
-  gamemode: Gamemode;
+  gameMode: Gamemode;
   teamSize: number;
 };
 
@@ -365,6 +353,18 @@ declare class AmqAwesomepleteClass extends AwesompleteClass {
 }
 
 /**
+ * Controller for the anime dropdown, shared by all the answer inputs (global since the November 2026 AMQ update)
+ */
+declare class AutoCompleteController {
+  /** All the anime names that can appear in the dropdown */
+  list: string[];
+  /** Fetch the anime names from the server (or only the changes, if already fetched) */
+  updateList: () => void;
+  /** One dropdown per registered answer input, recreated whenever the list changes. Empty until the list is first fetched. */
+  awesomepleteInstances: AmqAwesomepleteClass[];
+}
+
+/**
  * Global escapeHtml function used by AmqAwesomeplete
  */
 declare function escapeHtml(text: string): string;
@@ -376,6 +376,7 @@ declare global {
   var Listener: typeof ListenerClass;
   var socket: AMQSocket;
   var quizVideoController: QuizVideoController;
+  var autoCompleteController: AutoCompleteController;
 
   /**
    * The name of the user

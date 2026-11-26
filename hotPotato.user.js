@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hot Potato Gamemode
 // @namespace    http://tampermonkey.net/
-// @version      1.32
+// @version      1.33
 // @description  Utilities for the hot potato gamemode. Alt+click on an avatar to pass the potato to them.
 //               Commands:
 //               - /potato help: Show the available commands
@@ -27,6 +27,10 @@
 
 /**
  * CHANGELOG
+ *
+ * v1.33
+ * - Fix auto-passing the potato after an AMQ update that turned the dropdown's autoCompleteController into a global object.
+ * - Fix Ranked not being detected while in the lobby, so the script is disabled there too.
  *
  * v1.32
  * - Added a "/potato script" command to show a link to download the script.
@@ -230,7 +234,7 @@ const getCurrentAnswer = () =>
  * Check if the player is playing Ranked
  */
 const isRanked = () =>
-  (lobby.inLobby && lobby.settings.gamemode === "Ranked") ||
+  (lobby.inLobby && lobby.settings.gameMode === "Ranked") ||
   (quiz.inQuiz && quiz.gameMode === "Ranked");
 
 /**
@@ -297,7 +301,7 @@ const getTeamDictionary = () => {
  * @param {string} animeName
  */
 const isValidAnime = (animeName) => {
-  return quiz.answerInput.typingInput.autoCompleteController.list.some(
+  return autoCompleteController.list.some(
     (anime) => anime.toLowerCase() === animeName.toLowerCase()
   );
 };
