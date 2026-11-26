@@ -232,7 +232,7 @@ const getSuggestions = (search) => {
   const regex = new RegExp(createAnimeSearchRegexQuery(search), "i");
 
   const filteredList =
-    quiz.answerInput.typingInput.autoCompleteController.list.filter((anime) =>
+    autoCompleteController.list.filter((anime) =>
       regex.test(anime)
     );
 
@@ -624,8 +624,8 @@ function onlyUnique(value, index, self) {
  * Preload dropdown when spectating, so that the shortcuts are available immediately
  */
 const preloadDropdown = () => {
-  if (quiz.answerInput.typingInput.autoCompleteController.list.length === 0) {
-    quiz.answerInput.typingInput.autoCompleteController.updateList();
+  if (autoCompleteController.list.length === 0) {
+    autoCompleteController.updateList();
   }
 };
 
