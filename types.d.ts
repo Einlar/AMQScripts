@@ -263,12 +263,25 @@ export class HostModal {
   roomId: number | "";
 }
 
+/**
+ * Controller for the anime dropdown, shared by all the answer inputs (global since the November 2026 AMQ update)
+ */
+declare class AutoCompleteController {
+  /** All the anime names that can appear in the dropdown */
+  list: string[];
+  /** Fetch the anime names from the server (or only the changes, if already fetched) */
+  updateList: () => void;
+  /** One dropdown per registered answer input, recreated whenever the list changes. Empty until the list is first fetched. */
+  awesomepleteInstances: any[];
+}
+
 declare global {
   var gameChat: GameChat;
   var quiz: Quiz;
   var lobby: Lobby;
   var Listener: typeof ListenerClass;
   var socket: AMQSocket;
+  var autoCompleteController: AutoCompleteController;
 
   /**
    * The name of the user

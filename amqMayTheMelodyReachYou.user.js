@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ May the Melody Reach You
 // @namespace    http://tampermonkey.net/
-// @version      0.86
+// @version      0.87
 // @description  Show the Song/Artist matches for the current song when playing in a S/A room with the Ensemble Song Artist script enabled. Works even while spectating!
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -14,6 +14,7 @@
 
 /**
  * CHANGELOG
+ * - 0.87: Fix auto-skipping when you had already submitted an answer, broken by an AMQ update that turned the dropdown's autoCompleteController into a global object.
  * - 0.85: When in doomed mode, you can now click on the symbols that appear in the chat to append them to the answer input. No more copy-pasting!
  */
 
@@ -138,7 +139,7 @@ const submitAnswer = (answer) => {
  * @param {string} animeName
  */
 const isValidAnime = (animeName) => {
-  return quiz.answerInput.typingInput.autoCompleteController.list.some(
+  return autoCompleteController.list.some(
     (anime) => anime.toLowerCase() === animeName.toLowerCase()
   );
 };
