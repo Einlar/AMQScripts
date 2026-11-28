@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Enter DropD
 // @namespace    http://tampermonkey.net/
-// @version      1.11
+// @version      1.12
 // @description  Pressing Enter in the answer input will automatically send the value of the first suggestion in the dropdown list, or the highlighted item if any. If you don't press Enter before the guessing phase ends, this will happen automatically (except if you or any teammate already submitted a valid answer). Activate/deactivate with [ALT+Q].
 // @author       Einlar
 // @match        https://animemusicquiz.com/*
@@ -13,6 +13,9 @@
 
 /**
  * CHANGELOG
+ *
+ * v1.12
+ * - Fix pressing Enter again after picking an anime from the dropdown, which replaced it with the first suggestion for the text typed before picking it.
  *
  * v1.11
  * - Fix the script after an AMQ update that turned the dropdown's autoCompleteController into a global object.
@@ -291,6 +294,10 @@ const setupDropD = () => {
     if (event.which === ENTER_KEY_CODE) {
       const val = $(this).val();
       if (typeof val === "string" && val !== "") {
+        // If the input already holds an exact anime name (e.g. one just picked from the dropdown), let AMQ submit it as it is.
+        // Otherwise the dropdown, which still holds the results for the text typed before picking it, would replace it.
+        if (autoCompleteController.list.includes(val)) return;
+
         const suggestion = await getSuggestions();
 
         // Avoid emptying the input if the dropdown has no items
